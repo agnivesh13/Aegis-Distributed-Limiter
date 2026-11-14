@@ -1,0 +1,12 @@
+# Agent tooling installed locally; skills-lock.json restores it.
+.agents/
+.claude/
+
+# Build output
+/bin/
+*.exe
+*.test
+*.out
+
+# Raw benchmark runs stay local; summary.csv and the charts are committed.
+bench/results/raw/
