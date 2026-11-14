@@ -846,6 +846,7 @@ The project covers the standard "design a rate limiter" question end to end, wit
 Aegis-Distributed-Limiter/
   PLAN.md                       this file
   TASKS.md                      task tracker: who does what, and what is done
+  learnings/                    study notes: the code explained from the basics
   README.md
   Dockerfile                    multi-stage; every binary in one image
   go.mod
