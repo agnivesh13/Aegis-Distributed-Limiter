@@ -169,6 +169,53 @@ warning: in the working copy of 'go.mod', LF will be replaced by CRLF the next t
 
 **Lesson.** Run `git status` before every commit and read the "Changes to be committed" list.
 
+## 11. A test that passed for the wrong reason
+
+**What it looked like.** A test meant to prove "when Redis accepts a connection and never replies, `Allow` gives up at its 200 ms deadline" passed, and logged:
+
+```text
+gave up after 543.6µs with: ... An established connection was aborted by the software in your host machine.
+```
+
+**Cause.** Two clues in that one line. A 200 ms deadline cannot expire in half a millisecond. And the error is "connection aborted", not a timeout. To put the test proxy into its silent mode, the test cut all open connections. The backend's next call picked up one of those dead connections from its pool and failed instantly. The call never reached a silent connection, so the deadline was never involved. The test only checked "an error came back, and quickly", and a dead connection satisfies that.
+
+**Fix.** The test now keeps calling until one call actually waits (at least half the timeout), checks that no call waits much longer than the timeout, and fails outright if no call ever waited. It now logs `gave up after 200.2ms with: i/o timeout`.
+
+**Lesson.** A green test is a claim, and the claim can be false. Read what a passing test printed, and ask "would this still pass if the feature were broken?" Here the answer was yes.
+
+## 12. Two packages with the same name
+
+**What it looked like.** Our package is `internal/limiter/redis`. The library is also called `redis`. Inside our package, the name `redis` would be ambiguous.
+
+**Fix.** Rename the import where it is used:
+
+```go
+import goredis "github.com/redis/go-redis/v9"
+```
+
+After that the library is `goredis.NewClient`, `goredis.NewScript`, and so on.
+
+**Lesson.** An import can be given any local name. It is the standard way out of a name clash.
+
+## 13. The editor flagged a file that compiles fine
+
+**What it looked like**
+
+```text
+No packages found for open file ...\integration_test.go.
+This file may be excluded due to its build tags
+```
+
+**Cause.** The file starts with `//go:build integration`, so it is compiled only when that tag is given. The editor's Go plugin does not pass the tag, sees a file that belongs to no build, and warns.
+
+**Fix.** `.vscode/settings.json` tells the plugin to use the tag:
+
+```json
+{ "gopls": { "build.buildFlags": ["-tags=integration"] } }
+```
+
+**Lesson.** The editor and the `go` command are two separate tools with separate settings. A warning in one does not always mean a problem in the other; `go vet -tags integration ./...` was clean throughout.
+
 ## The pattern behind all of these
 
 Looking back over the list:

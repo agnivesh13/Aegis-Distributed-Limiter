@@ -1,0 +1,25 @@
+-- Sliding window counter, decided atomically inside Redis.
+--
+-- KEYS[1] = rl:sw:<route>:<client>
+-- ARGV    = limit, window_ms, cost, [now_ms]
+-- Returns   {allowed, remaining, retry_after_ms, reset_after_ms}, all integers
+--
+-- This script is one of the pieces the plan reserves for you to write by
+-- hand. While this file holds only comments, the Redis backend refuses the
+-- sliding window with ErrUnsupported. As soon as it holds code, the backend
+-- runs it and the integration tests check it against the conformance suite.
+--
+-- What to build: "Sliding window counter: exact behaviour" in PLAN.md,
+-- steps 1 to 8. token_bucket.lua next to this file shows the shape: read
+-- the arguments, read the time, load the state with HMGET, decide, store
+-- with HSET and PEXPIRE, return four integers.
+--
+-- What the tests will hold you to:
+--   * Read now_ms from ARGV[4] when it is given; otherwise use redis TIME.
+--   * A rejected request writes nothing: no HSET, no PEXPIRE.
+--   * Return whole milliseconds, rounded up with math.ceil. Redis cuts the
+--     fraction off any number a script returns.
+--   * Keep the state in a hash with the fields idx, cur and prev, and
+--     expire it two windows after the last write.
+--
+-- learnings/04-sliding-window.md walks through the same algorithm in Go.

@@ -2,7 +2,7 @@
 
 Every task from [PLAN.md](PLAN.md), who owns it, and whether it is done. PLAN.md says what to build; this file only tracks progress.
 
-**Current position:** Phase 1. The limiter contract, conformance suite and memory backend are in. Next up is the in-memory token bucket, written by hand.
+**Current position:** Fable has finished every task of its own that does not wait on someone else, through Phase 4. Next up: your in-memory token bucket (Phase 1), then Opus's Phase 0 and Phase 1 tasks.
 
 ## How to use this file
 
@@ -82,10 +82,11 @@ Switch models with `/model fable` or `/model opus`.
 **Tasks**
 
 - [ ] **You:** `internal/limiter/redis/scripts/sliding_window.lua`
-- [ ] **Fable:** `token_bucket.lua`, and review of both scripts against the conformance suite
-- [ ] **Fable:** `internal/limiter/redis`: go-redis client, embedded scripts, the four integers mapped to `Decision`, per-call deadline
-- [ ] **Fable:** naive test-only backend (`GET`, compute in Go, `SET`) that shows the lost-update race
-- [ ] **Fable:** integration tests (build tag `integration`, Redis from testcontainers-go): conformance suite, exactness with three instances, the naive backend over-admitting, Redis outage and recovery
+- [x] **Fable:** `token_bucket.lua`, checked against the conformance suite
+- [ ] **Fable:** review of your `sliding_window.lua` (waits on you)
+- [x] **Fable:** `internal/limiter/redis`: go-redis client, embedded scripts, the four integers mapped to `Decision`, per-call deadline
+- [x] **Fable:** naive test-only backend (`GET`, compute in Go, `SET`) that shows the lost-update race
+- [x] **Fable:** integration tests (build tag `integration`, Redis from testcontainers-go): conformance suite, exactness with three instances, the naive backend over-admitting, Redis outage and recovery
 - [ ] **Opus:** `fail_open` and `fail_closed` in the rate-limit middleware
 - [ ] **Opus:** `/readyz` reports not ready while Redis is unreachable
 - [ ] **Opus:** Compose: add `redis`, make `gateway` scalable, add `toxiproxy` under the `faults` profile

@@ -1,0 +1,20 @@
+Phase 2: the lost-update race, measured
+Date: 2026-11-14
+
+Test: TestNaiveBackendAdmitsMoreThanTheLimit and TestThreeInstancesAdmitExactlyTheLimit
+      in internal/limiter/redis/integration_test.go
+Load: 10,000 requests for one key, 50 goroutines, spread over 3 limiter
+      instances sharing one Redis 7. Clock frozen. Limit 100 (sliding window).
+
+Backend                         Admitted   Over the limit
+naive GET, decide in Go, SET    2053       1953%   (run 1, Windows host)
+naive GET, decide in Go, SET    2311       2211%   (run 2, Windows host)
+naive GET, decide in Go, SET    2336       2236%   (run 3, Linux container, -race)
+Lua script (token bucket)        100          0%   (capacity 100; every run)
+Lua script (sliding window)      100          0%   (plan's script, run as a temporary stand-in)
+
+Reproduce:
+  go test -tags integration -run 'TestNaive|TestThreeInstances' -v ./internal/limiter/redis/
+
+The naive figure varies from run to run because it depends on how the
+goroutines happen to interleave. The Lua figure never varies.

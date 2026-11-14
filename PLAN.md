@@ -38,6 +38,7 @@ Save this file as `PLAN.md` in the repo root and have Claude Code follow it one 
 7. Save every benchmark and experiment output under `bench/results/`. Numbers in the README and report must come from those files.
 8. Use only cross-platform tooling: Go programs and `docker compose`. Python is allowed for the plotting script only. No bash-only scripts and no host tools such as `tc` or `iptables`.
 9. `TASKS.md` tracks every task and who owns it. Tick a task there in the same commit that finishes it.
+10. Every change gets a matching note in `learnings/`: what was built, why, and each problem met with its cause and fix, explained from the basics.
 
 **Suggested split of the work**
 
