@@ -89,6 +89,47 @@ It would not build on Windows here. The fix was to run the tests inside a Linux 
 | `.gitignore` added | Keeps local tool folders and build output out of Git |
 | `TASKS.md` added | One place to see every task, its owner and whether it is done |
 
+## Step 9: The Redis backend (Phase 2)
+
+Files: [internal/limiter/redis/](../internal/limiter/redis/)
+
+A limiter that several gateways can share exactly, by running each decision as a Lua script inside Redis. I wrote the token bucket script, the Go backend around both scripts, and integration tests against a real Redis in Docker. The sliding window script is yours, so that file holds only comments for now.
+
+The headline result: a deliberately naive GET-then-SET backend admitted over 2,000 requests against a limit of 100. The Lua version admitted exactly 100, every time.
+
+Explained in [08-redis-backend.md](08-redis-backend.md).
+
+## Step 10: One copy of the sliding window arithmetic
+
+The gossip backend needed the same sliding window formulas as the memory backend. Two copies of a formula drift apart, so the arithmetic moved into [internal/limiter/window.go](../internal/limiter/window.go) and both backends call it. The existing tests passed unchanged afterwards, which is what a refactor should look like: same behaviour, better structure.
+
+## Step 11: The gossip backend (Phase 3)
+
+Files: [internal/limiter/gossip/](../internal/limiter/gossip/)
+
+A limiter that needs no Redis: each gateway decides from its own memory and tells the others what it admitted in the background. I wrote the store, the wire format with a fuzz test, the node with its gossip loop, and a simulated five-node cluster that runs inside one test. The counter merge is yours; thirteen tests skip themselves until it exists.
+
+Explained in [09-gossip-backend.md](09-gossip-backend.md).
+
+## Step 12: The measuring code (Phase 4)
+
+Files: [internal/loadgen/](../internal/loadgen/), [internal/analyze/](../internal/analyze/), [cmd/analyze/](../cmd/analyze/)
+
+The schedule that decides when each load-test request leaves, and the analyzer that works out how far a run was from an ideal limiter. The analyzer's own tests caught a wrong formula in my first version.
+
+Explained in [10-measuring.md](10-measuring.md).
+
+## What could not be done yet
+
+Some Fable tasks wait on other work and were left:
+
+| Task | Waits on |
+| --- | --- |
+| Review of your token bucket, Lua script and merge | You writing them |
+| Review of each whole phase | Opus building the rest of each phase |
+| The S0 noise-floor check | A real cluster and real benchmark runs |
+| The prediction-against-measurement analysis | The Phase 4 results |
+
 ## The commits
 
 | Commit | What it holds |
@@ -98,12 +139,22 @@ It would not build on Windows here. The fix was to run the tests inside a Linux 
 | `e7a1a62` | The memory backend with the sliding window |
 | `347a032` | `.gitattributes`, `.gitignore`, the skills lock file (and, by accident, the plan rename) |
 | `ffa5418` | The module path change and `TASKS.md` |
+| `9c3f5b5` | The first seven notes in `learnings/` |
+| `50cd93e` | The Redis backend, its Lua token bucket and integration tests |
+| `42cae19` | The gossip backend: store, codec, node and simulations |
+| the commit after `42cae19` | The load schedule and the analyzer |
 
 Each commit builds and passes its tests on its own. Small commits like these mean that if something breaks later, `git bisect` can find the exact commit that broke it.
 
 ## What comes next
 
-Your token bucket, in [token_bucket.go](../internal/limiter/memory/token_bucket.go). The tests for it already exist. Start by reading [04-sliding-window.md](04-sliding-window.md) and [05-memory-backend.md](05-memory-backend.md): the token bucket has the same shape as the sliding window code, with different arithmetic.
+Three pieces are yours, in this order:
+
+1. The token bucket, in [token_bucket.go](../internal/limiter/memory/token_bucket.go).
+2. The sliding window script, in [sliding_window.lua](../internal/limiter/redis/scripts/sliding_window.lua).
+3. The counter merge, in [merge.go](../internal/limiter/gossip/merge.go).
+
+Each file holds notes on what to build, and the tests for each already exist. Start by reading [04-sliding-window.md](04-sliding-window.md) and [05-memory-backend.md](05-memory-backend.md): the token bucket has the same shape as the sliding window code, with different arithmetic.
 
 ## Check yourself
 

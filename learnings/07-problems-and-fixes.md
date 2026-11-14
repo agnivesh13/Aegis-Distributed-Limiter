@@ -216,6 +216,46 @@ This file may be excluded due to its build tags
 
 **Lesson.** The editor and the `go` command are two separate tools with separate settings. A warning in one does not always mean a problem in the other; `go vet -tags integration ./...` was clean throughout.
 
+## 14. A formula with the wrong denominator
+
+**What it looked like.** A test failed:
+
+```text
+TestRejectEverything: false rejects = 0%, over = 0%; want 100, 0
+```
+
+Every request had been rejected, and the analyzer said the false-reject rate was 0%.
+
+**Cause.** One helper computed "how far `a` exceeds `b`, as a percentage of `b`". Over-admission called it as `(admitted, ideal)`, which is right. For false rejects I swapped the arguments to `(ideal, admitted)`. That gave the right difference but divided by the admitted count, where the plan's formula divides by the ideal count. With nothing admitted, the helper avoided dividing by zero and returned 0.
+
+**Fix.** The helper now takes the difference and the ideal count as separate arguments, so the denominator is always the ideal count and cannot be swapped.
+
+**Lesson.** A wrong formula in measuring code does not crash. It prints believable numbers. Test the extreme inputs, all admitted and all rejected, where a wrong formula gives an answer that is obviously absurd. Full story in [10-measuring.md](10-measuring.md).
+
+## 15. A test that depended on which goroutine ran first
+
+**What it looked like.** While writing the load-schedule tests I wrote one that cancelled the run from inside the tenth request's goroutine, then checked that fewer than 100 requests were sent. I caught the flaw before running it.
+
+**Cause.** With the fake timer nothing really waits, so the main loop can start all 100 requests before the tenth goroutine gets a turn to cancel. Whether the test passed would depend on how the scheduler happened to order things: it would pass most days and fail on a busy machine.
+
+**Fix.** Cancel *before* calling `Run` and check that nothing is sent. No timing involved; the same result every time.
+
+**Lesson.** If a test's outcome depends on which of two goroutines runs first, it is a flaky test, even if it passes a hundred times in a row. Arrange the test so only one order is possible.
+
+## 16. A shell command broken by an apostrophe
+
+**What it looked like**
+
+```text
+bash: unexpected EOF while looking for matching `''
+```
+
+**Cause.** I passed a long script to Python inline on the command line. The text contained apostrophes (as in "plan's"), and the shell read one of them as the start of a quoted string that never ended.
+
+**Fix.** Saved the script to a file and ran the file.
+
+**Lesson.** Once a script is longer than a few lines or contains quotes, put it in a file. Getting quotes through a shell correctly is harder than it looks.
+
 ## The pattern behind all of these
 
 Looking back over the list:

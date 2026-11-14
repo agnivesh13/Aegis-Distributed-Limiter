@@ -754,8 +754,8 @@ Defaults unless a row says otherwise: 3 gateways, sliding window counter, limit 
 
 ### How accuracy is computed
 
-1. Sort the run's CSV by send time and keep only the measured window.
-2. Ideal total: replay every request for a key through the memory limiter, with the fake clock set to each send time, and count what it admits.
+1. Sort the run's CSV by send time. The measured window is everything after the warm-up.
+2. Ideal total: replay every request for a key through the memory limiter, with the fake clock set to each send time, and count what it admits inside the measured window. The replay starts at the first request, warm-up included, so the reference enters the measured window holding the same previous-window counts the gateways did.
 3. Over-admission % = `max(0, admitted - ideal) / ideal * 100`, per key and overall.
 4. False rejects % = `max(0, ideal - admitted) / ideal * 100`.
 5. Peak check: the largest number of admitted requests in any interval of length W, divided by the limit.

@@ -2,7 +2,7 @@
 
 Every task from [PLAN.md](PLAN.md), who owns it, and whether it is done. PLAN.md says what to build; this file only tracks progress.
 
-**Current position:** Fable has finished every task of its own that does not wait on someone else, through Phase 4. Next up: your in-memory token bucket (Phase 1), then Opus's Phase 0 and Phase 1 tasks.
+**Current position:** Fable has finished every task of its own that does not wait on someone else, through Phase 4. What is left for Fable is reviews (they wait on your three pieces and on Opus's work), the S0 noise-floor check and the Phase 5 analysis (they wait on real benchmark runs). Next up: your in-memory token bucket (Phase 1), then Opus's Phase 0 and Phase 1 tasks.
 
 ## How to use this file
 
@@ -128,10 +128,10 @@ Switch models with `/model fable` or `/model opus`.
 
 **Tasks**
 
-- [ ] **Fable:** load generator send scheduling: open loop, late-send counting (more than 5 ms after the scheduled time)
+- [x] **Fable:** load generator send scheduling in `internal/loadgen`: open loop, late-send counting (more than 5 ms after the scheduled time). `cmd/loadgen` calls `loadgen.Run`
 - [ ] **Opus:** `cmd/loadgen` v1 flags: `-keys`, `-dist`, `-shape`, per-gateway weights
 - [ ] **Opus:** CSV output: `seq, key, send_unix_ns, latency_ns, status, gateway_id`
-- [ ] **Fable:** `cmd/analyze`: replay through the reference limiter; one row per run in `bench/results/summary.csv`
+- [x] **Fable:** `cmd/analyze` and `internal/analyze`: replay through the reference limiter; one row per run in `bench/results/summary.csv`
 - [ ] **Opus:** `cmd/bench`: start the cluster for a scenario, wait for `/readyz`, run the load, inject faults, scrape `/metrics`, tear down
 - [ ] **Opus:** `bench/scenarios.yaml`: the scenario matrix
 - [ ] **Opus:** `bench/plot.py`: the two charts from `summary.csv`
