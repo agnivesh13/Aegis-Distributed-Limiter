@@ -1,3 +1,3 @@
-module github.com/agnivesh13/ratelimit-gateway
+module github.com/agnivesh13/Aegis-Distributed-Limiter
 
 go 1.27.4

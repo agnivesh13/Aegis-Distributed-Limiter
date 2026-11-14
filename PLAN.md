@@ -37,6 +37,7 @@ Save this file as `PLAN.md` in the repo root and have Claude Code follow it one 
 6. After each phase, write `docs/notes/phase-N.md`: what was built, the design choices made, and what each test proves.
 7. Save every benchmark and experiment output under `bench/results/`. Numbers in the README and report must come from those files.
 8. Use only cross-platform tooling: Go programs and `docker compose`. Python is allowed for the plotting script only. No bash-only scripts and no host tools such as `tc` or `iptables`.
+9. `TASKS.md` tracks every task and who owns it. Tick a task there in the same commit that finishes it.
 
 **Suggested split of the work**
 
@@ -107,7 +108,7 @@ These contracts are fixed so that every phase builds on the same foundation.
 | Item | Choice |
 | --- | --- |
 | Language | Go, latest stable release |
-| Module path | `github.com/<your-username>/ratelimit-gateway` |
+| Module path | `github.com/agnivesh13/Aegis-Distributed-Limiter` (matches the GitHub repo) |
 | Redis | Version 7 or newer, single instance, persistence off |
 | Runtime | Docker Compose; every component runs in a container |
 | Logging | `log/slog`, JSON to stdout |
@@ -842,8 +843,9 @@ The project covers the standard "design a rate limiter" question end to end, wit
 ## Repo layout, tooling and risks
 
 ```text
-ratelimit-gateway/
+Aegis-Distributed-Limiter/
   PLAN.md                       this file
+  TASKS.md                      task tracker: who does what, and what is done
   README.md
   Dockerfile                    multi-stage; every binary in one image
   go.mod

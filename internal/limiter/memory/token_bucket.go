@@ -3,7 +3,7 @@ package memory
 import (
 	"time"
 
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
 )
 
 // bucket is one key's token bucket state. It is guarded by its shard's mutex.

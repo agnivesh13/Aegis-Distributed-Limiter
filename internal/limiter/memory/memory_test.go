@@ -3,9 +3,9 @@ package memory_test
 import (
 	"testing"
 
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter"
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter/limitertest"
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter/memory"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter/limitertest"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter/memory"
 )
 
 func newBackend(_ *testing.T, clock limiter.Clock) limiter.Limiter {

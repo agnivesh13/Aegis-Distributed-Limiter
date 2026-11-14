@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
 )
 
 // numShards is how many independently locked maps the keys are spread over,

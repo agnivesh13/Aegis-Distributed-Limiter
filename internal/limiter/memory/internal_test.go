@@ -8,8 +8,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter"
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter/limitertest"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter/limitertest"
 )
 
 var (

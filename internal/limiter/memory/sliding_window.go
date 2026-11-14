@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
 )
 
 // window is one key's sliding window counter state. It is guarded by its

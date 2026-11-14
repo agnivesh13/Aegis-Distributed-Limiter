@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agnivesh13/ratelimit-gateway/internal/limiter"
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
 )
 
 // Factory builds a fresh, empty limiter that reads the time from clock.
