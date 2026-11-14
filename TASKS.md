@@ -105,12 +105,13 @@ Switch models with `/model fable` or `/model opus`.
 **Tasks**
 
 - [ ] **You:** the counter merge in `gossip/store.go` ("Merge (on receiving an entry)" in the plan)
-- [ ] **Fable:** the rest of `gossip/store.go`: state and decision, fake clock, no network
-- [ ] **Fable:** `gossip/codec.go`: encode, decode, splitting into packets of at most `max_packet_bytes`; fuzz test
-- [ ] **Opus:** `gossip/transport.go`: the `Send` / `Peers` interface, the memberlist implementation, the in-process fake
-- [ ] **Fable:** `gossip/node.go`: gossip loop, memberlist delegate methods, metrics, `Close` that leaves the cluster
-- [ ] **Fable:** merge-property tests and the simulation tests (fanout 4, fanout 1 with full sync, 30% loss, restart)
-- [ ] **Fable:** review of your merge
+- [x] **Fable:** the rest of `gossip/store.go`: state and decision, fake clock, no network
+- [x] **Fable:** `gossip/codec.go`: encode, decode, splitting into packets of at most `max_packet_bytes`; fuzz test
+- [x] **Fable:** `gossip/transport.go`: the `Send` / `Peers` interface (done early; `node.go` needed it), and an in-process fake in `sim_test.go`
+- [ ] **Opus:** the memberlist implementation of `Transport`, wired to the `Node` as its delegate
+- [x] **Fable:** `gossip/node.go`: gossip loop, memberlist delegate methods, metrics, `Close` that leaves the cluster
+- [x] **Fable:** merge-property tests and the simulation tests (fanout 4, fanout 1 with full sync, 30% loss, restart)
+- [ ] **Fable:** review of your merge (waits on you; 13 tests skip themselves until `Merge` exists)
 - [ ] **Opus:** admin endpoint `/debug/limiter?key=...`
 - [ ] **Opus:** admin endpoint `/debug/gossip/block?peer=...`, only when `DEBUG_FAULTS=1`
 - [ ] **Opus:** Compose: run with `LIMITER_BACKEND=gossip`, joining through the `gateway` DNS name

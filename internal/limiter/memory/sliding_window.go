@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"math"
 	"time"
 
 	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
@@ -17,18 +16,11 @@ type window struct {
 	expires time.Time     // two windows after the last write
 }
 
-// allowSlidingWindow follows "Sliding window counter: exact behaviour" in the
-// plan step by step. The arithmetic mirrors sliding_window.lua expression
-// for expression, so both backends round the same way.
+// allowSlidingWindow keeps the counts; the arithmetic that turns them into
+// a decision is limiter.SlidingWindowDecision, shared with the gossip
+// backend.
 func (b *Backend) allowSlidingWindow(key string, l limiter.Limit, cost int, now time.Time) limiter.Decision {
-	w := int64(l.Period)
-	nowNs := now.UnixNano()
-	idx := nowNs / w
-	elapsed := nowNs - idx*w
-	if elapsed < 0 { // a clock before 1970: make the division round down
-		idx--
-		elapsed += w
-	}
+	idx, elapsed := limiter.WindowAt(now, l.Period)
 
 	s := b.shardFor(key)
 	s.mu.Lock()
@@ -48,39 +40,13 @@ func (b *Backend) allowSlidingWindow(key string, l limiter.Limit, cost int, now 
 		}
 	}
 
-	limit := float64(l.Rate)
-	c := float64(cost)
-	estimate := float64(cur) + float64(prev)*(1-float64(elapsed)/float64(w))
-
-	d := limiter.Decision{Limit: l.Rate}
-	switch {
-	case estimate+c <= limit:
-		d.Allowed = true
-		cur += int64(cost)
-		estimate += c
+	d := limiter.SlidingWindowDecision(l, cost, cur, prev, elapsed)
+	if d.Allowed {
 		if st == nil {
 			st = &window{}
 			s.windows[key] = st
 		}
-		*st = window{period: l.Period, idx: idx, cur: cur, prev: prev, expires: now.Add(2 * l.Period)}
-	case float64(cur)+c <= limit:
-		// The current window has room; the previous window's weight is
-		// what blocks the request. Wait until it has decayed enough.
-		// prev is non-zero here: with prev == 0 the estimate equals cur.
-		wait := float64(w)*(1-(limit-float64(cur)-c)/float64(prev)) - float64(elapsed)
-		d.RetryAfter = max(1, time.Duration(math.Ceil(wait)))
-	default:
-		// The current window alone is too full. Its end is the earliest
-		// the request could fit, so this wait is a lower bound.
-		d.RetryAfter = time.Duration(w - elapsed)
-	}
-
-	d.Remaining = max(0, int(math.Floor(limit-estimate)))
-	switch {
-	case cur > 0:
-		d.ResetAfter = time.Duration(2*w - elapsed)
-	case prev > 0:
-		d.ResetAfter = time.Duration(w - elapsed)
+		*st = window{period: l.Period, idx: idx, cur: cur + int64(cost), prev: prev, expires: now.Add(2 * l.Period)}
 	}
 	return d
 }

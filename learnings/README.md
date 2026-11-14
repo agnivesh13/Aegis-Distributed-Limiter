@@ -18,6 +18,7 @@ Read them in order the first time. Each file assumes the ones before it.
 | [06-conformance-suite.md](06-conformance-suite.md) | How the tests are designed, the fake clock, floating-point traps, and how the tests themselves were tested |
 | [07-problems-and-fixes.md](07-problems-and-fixes.md) | Every problem met during the work: what it looked like, the cause, the fix, the lesson |
 | [08-redis-backend.md](08-redis-backend.md) | Why GET-then-SET over-admits, how a Lua script fixes it, deadlines and retries, and testing against a real Redis |
+| [09-gossip-backend.md](09-gossip-backend.md) | Deciding without Redis: grow-only counters, the wire format, the gossip loop, fuzzing, and simulating a cluster in one process |
 
 ## How to study with these
 

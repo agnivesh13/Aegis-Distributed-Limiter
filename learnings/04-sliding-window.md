@@ -1,6 +1,6 @@
 # 04. The sliding window counter
 
-File: [internal/limiter/memory/sliding_window.go](../internal/limiter/memory/sliding_window.go)
+Files: [internal/limiter/window.go](../internal/limiter/window.go) (the arithmetic), [internal/limiter/memory/sliding_window.go](../internal/limiter/memory/sliding_window.go) (the storage)
 
 This note builds the algorithm up from the simplest idea, shows where each simpler idea fails, and then walks through the code.
 
@@ -89,13 +89,24 @@ This is the accepted cost of storing two numbers and not ten thousand. The plan 
 
 ## The code, step by step
 
+The code is in two files, and the split is worth understanding:
+
+- **`window.go`** holds the arithmetic: which window are we in, and given two counts, what is the decision? It stores nothing.
+- **`memory/sliding_window.go`** holds the storage: lock, load the counts, call the arithmetic, save.
+
+At first all of it sat in the memory backend. When the gossip backend was written it needed the very same arithmetic over counts it stores differently. Two copies of a formula drift apart sooner or later, so the arithmetic moved to one shared place (`limiter.WindowAt` and `limiter.SlidingWindowDecision`) and both backends call it. Steps 1, 3, 5 and 6 below are in `window.go`; steps 2 and 4 are in the memory backend.
+
 ### Step 1: which window are we in?
 
 ```go
-w := int64(l.Period)        // window length in nanoseconds
-nowNs := now.UnixNano()     // nanoseconds since 1970
-idx := nowNs / w            // window number
-elapsed := nowNs - idx*w    // how far into this window
+func WindowAt(now time.Time, period time.Duration) (idx int64, elapsed time.Duration) {
+	w := int64(period)          // window length in nanoseconds
+	nowNs := now.UnixNano()     // nanoseconds since 1970
+	idx = nowNs / w             // window number
+	e := nowNs - idx*w          // how far into this window
+	...
+	return idx, time.Duration(e)
+}
 ```
 
 Integer division throws away the remainder, so `nowNs / w` counts whole windows since 1970. That is the **window number**. What is left over is `elapsed`.
@@ -138,24 +149,26 @@ The stored state says "in window number `st.idx`, there were `st.cur` requests".
 ### Step 3: estimate and decide
 
 ```go
-estimate := float64(cur) + float64(prev)*(1-float64(elapsed)/float64(w))
+estimate := float64(cur) + float64(prev)*(1-e/w)
 
 case estimate+c <= limit:    // allow
 ```
+
+(`e` and `w` are `elapsed` and the period as floating-point numbers.)
 
 The formula from above, then the test: does the estimate plus this request's cost still fit?
 
 ### Step 4: store only when allowed
 
 ```go
-d.Allowed = true
-cur += int64(cost)
-estimate += c
-if st == nil {
-	st = &window{}
-	s.windows[key] = st
+d := limiter.SlidingWindowDecision(l, cost, cur, prev, elapsed)
+if d.Allowed {
+	if st == nil {
+		st = &window{}
+		s.windows[key] = st
+	}
+	*st = window{period: l.Period, idx: idx, cur: cur + int64(cost), prev: prev, expires: now.Add(2 * l.Period)}
 }
-*st = window{period: l.Period, idx: idx, cur: cur, prev: prev, expires: now.Add(2 * l.Period)}
 ```
 
 Only an allowed request writes anything. The contract says "a rejected request consumes nothing", and the simplest way to guarantee that is to not touch the stored state at all on a reject. This is why step 2 worked on copies.
@@ -170,7 +183,7 @@ There are two different reasons a request is rejected, and each has its own wait
 
 ```go
 case float64(cur)+c <= limit:
-	wait := float64(w)*(1-(limit-float64(cur)-c)/float64(prev)) - float64(elapsed)
+	wait := w*(1-(limit-float64(cur)-c)/float64(prev)) - e
 ```
 
 The current window alone has room (`cur + cost <= limit`). The request fails only because `prev × weight` is still too large. That weight shrinks as time passes, so we can work out exactly when the request will fit.
@@ -199,7 +212,7 @@ Check: at 625 ms the estimate is `4 + 8 × 0.375 = 7`, and `7 + 1 = 8` fits exac
 
 ```go
 default:
-	d.RetryAfter = time.Duration(w - elapsed)
+	d.RetryAfter = l.Period - elapsed
 ```
 
 Here `cur + cost > limit`. No amount of decay in the previous window helps; nothing can fit until this window ends. So the wait is the time left in the window.
@@ -225,9 +238,9 @@ How many whole requests still fit. `math.Floor` rounds down, because 2.7 request
 ```go
 switch {
 case cur > 0:
-	d.ResetAfter = time.Duration(2*w - elapsed)
+	d.ResetAfter = 2*l.Period - elapsed
 case prev > 0:
-	d.ResetAfter = time.Duration(w - elapsed)
+	d.ResetAfter = l.Period - elapsed
 }
 ```
 
