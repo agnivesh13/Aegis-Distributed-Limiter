@@ -2,36 +2,60 @@ Phase 1: memory backend microbenchmarks
 Date: 2026-11-15
 Machine: 12th Gen Intel Core i7-12700H, Linux container limited to 4 CPUs (golang:1.27)
 Command: go test -run '^$' -bench BenchmarkAllow -benchmem -count 3 -cpu 1,4 ./internal/limiter/memory/
-Token bucket: skipped, not implemented yet (hand-written piece). Re-run once it exists.
 
-Median of 3 (ns per Allow call, 0 allocations in every case), from the raw output below:
+Median of 3 (ns per Allow call, 0 allocations in every case), computed from the raw output below:
+  sliding_window
                              1 CPU    4 CPUs
-  serial                     133.8    126.4
-  parallel, one hot key      100.8    125.2   one mutex: more cores do not help
-  parallel, 10,000 keys      117.9     50.6   64 shards: 2.3x the throughput
+    serial                   118.7    119.6
+    parallel, one hot key    101.3    129.9   one mutex: more cores do not help
+    parallel, 10,000 keys    122.4     50.2   64 shards: 2.4x the throughput
+
+  token_bucket
+                             1 CPU    4 CPUs
+    serial                   127.1    127.9
+    parallel, one hot key    106.3    136.9   one mutex: more cores do not help
+    parallel, 10,000 keys    131.7     58.1   64 shards: 2.3x the throughput
 
 Raw output:
 goos: linux
 goarch: amd64
 pkg: github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter/memory
 cpu: 12th Gen Intel(R) Core(TM) i7-12700H
-BenchmarkAllow/sliding_window/serial    	 9544459	       125.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/serial    	 8486782	       138.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/serial    	 9083566	       133.8 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/serial-4  	 8149892	       129.5 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/serial-4  	 9595545	       123.3 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/serial-4  	 9603068	       126.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/1key           	11408724	       105.2 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/1key           	12320478	       100.8 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/1key           	11252841	       100.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/1key-4         	 9408652	       124.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/1key-4         	 9271364	       129.4 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/1key-4         	 9551924	       125.2 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/10000keys      	 9780854	       117.0 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/10000keys      	10342423	       117.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/10000keys      	10264116	       118.6 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/10000keys-4    	21821455	        50.57 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/10000keys-4    	23863275	        52.63 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllow/sliding_window/parallel/10000keys-4    	23461860	        49.77 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial    	 9161586	       124.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial    	10364029	       118.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial    	 9630194	       118.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial-4  	10269081	       119.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial-4  	 9734095	       120.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial-4  	10161298	       117.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key           	12152070	       101.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key           	11851298	       100.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key           	11927667	       105.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key-4         	 8404558	       129.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key-4         	 8571238	       129.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key-4         	 9356977	       130.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys      	 8922314	       127.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys      	 9893470	       122.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys      	10284394	       111.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys-4    	25400674	        50.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys-4    	24284388	        50.40 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys-4    	22738948	        48.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/serial                    	 9555764	       127.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/serial                    	 9942435	       122.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/serial                    	 9368598	       129.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/serial-4                  	 9031365	       127.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/serial-4                  	 9624434	       123.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/serial-4                  	10059868	       128.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/1key             	11410322	       107.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/1key             	11597499	       106.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/1key             	11598482	       106.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/1key-4           	 8558708	       136.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/1key-4           	 8967518	       136.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/1key-4           	 8562804	       137.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/10000keys        	 9078666	       130.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/10000keys        	 8781675	       131.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/10000keys        	 8944852	       146.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/10000keys-4      	22261838	        56.98 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/10000keys-4      	20851360	        58.46 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/token_bucket/parallel/10000keys-4      	19118755	        58.13 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter/memory	22.565s
+ok  	github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter/memory	45.754s

@@ -1,0 +1,23 @@
+Phase 3: three gateways on the gossip backend, no Redis
+Date: 2026-11-15
+Setup: 3 gateway replicas (1 CPU each), LIMITER_BACKEND=gossip, fanout 2,
+       bench config (sliding window, 100 per 1 s).
+Load: cmd/loadgen, open loop, 200 req/s total, round-robin over the 3 replicas,
+      one API key, 30 s. Analysed with cmd/analyze, no warm-up discarded.
+      Raw CSVs in bench/results/raw/ (not committed).
+
+Gossip interval   Admitted   Ideal   Over-admission   Peak in any 1 s
+500 ms            3626       2983    21.56%           1.37x
+10 ms             2996       2972     0.81%           1.04x
+
+The margin over the limit is measurable and shrinks as the interval drops,
+as the plan's Phase 3 check requires.
+
+Convergence: read from each gateway's /debug/limiter within one second of the
+load stopping (a separate 10 s run at a 10 ms interval). All three gateways
+reported the same totals and the same per-node counts:
+
+  window 1794757029   total 69   per node 20 / 23 / 26   (identical on all three)
+
+These two runs are single runs, not medians of three; the S4 scenario in
+summary.csv is the repeated measurement.

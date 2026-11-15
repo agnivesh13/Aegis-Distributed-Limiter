@@ -4,12 +4,16 @@ Setup: 3 gateway replicas (1 CPU each), Redis 7.4, LIMITER_BACKEND=redis.
 Load: cmd/loadgen, open loop, 200 req/s total, round-robin over the 3 replicas,
       one API key. Raw CSVs in bench/results/raw/ (not committed).
 
-1. Sliding window route (/api/hello, 100 per 1 s), 30 s
-   Admitted 6000 of 6000; gateway_limiter_errors_total 2000 per gateway.
-   Not a measurement of exactness: sliding_window.lua is still the stub, so
-   the backend answered ErrUnsupported and fail_open let every request
-   through. Re-run once the script exists. (Since this run the gateway logs
-   an error at start-up for any route its backend cannot decide.)
+1. Sliding window route (bench config, 100 per 1 s), 30 s        [re-run 2026-11-15]
+   Admitted 3000 of 6000, with each gateway receiving 2000. The analyzer's
+   ideal for the same requests: 3000. Over-admission 0.00%, false rejects
+   0.00%. Three gateways together admitted exactly what one exact limiter
+   would. (An earlier run, before sliding_window.lua was written, admitted
+   all 6000 through fail_open; it measured nothing and is superseded.)
+   Peak in any one-second span: 1.28x the limit. The reference limiter
+   shows the same peak: the run began part-way through a window, and the
+   sliding window counter treats that short first window as if its
+   requests had been spread over a whole one.
 
 2. Token bucket route (/api/search, cost 5, 50 tokens/s, burst 100), 30 s
    Admitted 319 of 6000, with each gateway receiving 2000.
