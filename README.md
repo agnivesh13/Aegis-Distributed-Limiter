@@ -44,7 +44,7 @@ On PowerShell set the variable first: `$env:LIMITER_BACKEND = "redis"`.
 | --- | --- |
 | 8080 to 8084 | Gateway replicas (proxy) |
 | 9090 to 9094 | Gateway replicas (admin: `/healthz`, `/readyz`, `/metrics`, `/debug/limiter?key=`) |
-| 8081 | Upstream echo service |
+| 8089 | Upstream echo service (port 8081 inside the Compose network) |
 | 6379 | Redis |
 | 9099, 3000 | Prometheus, Grafana (`--profile observability`) |
 

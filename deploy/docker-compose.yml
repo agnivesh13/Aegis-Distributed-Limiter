@@ -60,7 +60,7 @@ services:
     <<: *app
     command: ["/app/upstream", "-addr", ":8081", "-delay", "${UPSTREAM_DELAY:-0s}"]
     ports:
-      - "8081:8081"
+      - "8089:8081"   # host port outside the gateways' 8080-8084 range
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/healthz"]
       interval: 2s

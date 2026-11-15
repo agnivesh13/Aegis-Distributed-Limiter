@@ -538,7 +538,7 @@ Six phases, each ending in something that runs. Stop after any phase and the pro
 **Done when**
 
 - `go build ./...` and `go vet ./...` succeed.
-- `docker compose -f deploy/docker-compose.yml up upstream` answers `curl localhost:8081/hello`.
+- `docker compose -f deploy/docker-compose.yml up upstream` answers `curl localhost:8089/hello` (the upstream listens on 8081 inside the network; on the host it is published on 8089, outside the gateways' port range).
 - Your unprotected counter fails the race detector and the other two pass.
 
 ### Phase 1: Single-node gateway (week 1)

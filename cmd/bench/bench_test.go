@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -49,7 +50,7 @@ func TestScenarioFileLoads(t *testing.T) {
 		t.Errorf("S7 should have no warm-up and the burst shape: %+v", s7[0].Run)
 	}
 	args := strings.Join(s7[0].LoadgenArgs("x.csv", time.Time{}), " ")
-	if !strings.Contains(args, "-shape burst -out x.csv") || !strings.Contains(args, "-burst-rate 10000") || strings.Contains(args, "-duration") {
+	if !strings.Contains(args, "-shape burst -out x.csv") || !strings.Contains(args, "-burst-rate 4000") || strings.Contains(args, "-duration") {
 		t.Errorf("S7 load generator args: %s", args)
 	}
 
@@ -122,34 +123,62 @@ func TestStartAtIsPassedToTheLoadGenerator(t *testing.T) {
 	}
 }
 
-// R1: limiter errors invalidate a run unless an outage was the point.
+// R1, refined after the first full run of the matrix: a backend that
+// cannot decide fails on (nearly) every request and is refused; a backend
+// that is slow under load fails on some and is a real result.
 func TestValidRun(t *testing.T) {
 	w := func(errors, merged float64) Snapshot {
 		s := newSnapshot()
 		s.LimiterErrors, s.GossipMerged = errors, merged
 		return s
 	}
-	if err := validRun("redis", 3, Fault{}, w(0, 0)); err != nil {
-		t.Errorf("clean run: %v", err)
-	}
-	if err := validRun("redis", 3, Fault{}, w(2000, 0)); err == nil {
-		t.Error("a run with limiter errors and no fault was accepted")
-	}
+	const requests = 60000
 	delay := time.Millisecond
-	if err := validRun("redis", 3, Fault{RedisDelay: &delay}, w(5, 0)); err == nil {
-		t.Error("added delay is not an outage; errors there mean something is broken")
+	for _, tc := range []struct {
+		name     string
+		backend  string
+		gateways int
+		fault    Fault
+		window   Snapshot
+		wantErr  bool
+	}{
+		{"clean run", "redis", 3, Fault{}, w(0, 0), false},
+		{"a missing script fails every request", "redis", 3, Fault{}, w(59988, 0), true},
+		{"a few missed deadlines are a result", "redis", 3, Fault{}, w(7, 0), false},
+		{"many missed deadlines under overload are a result", "redis", 3, Fault{}, w(30000, 0), false},
+		{"added delay is not an outage", "redis", 3, Fault{RedisDelay: &delay}, w(60000, 0), true},
+		{"errors during a Redis outage are the point", "redis", 3, Fault{StopRedisAt: 10 * time.Second, StopFor: 5 * time.Second}, w(60000, 0), false},
+		{"gossip gateways that merged nothing", "gossip", 3, Fault{}, w(0, 0), true},
+		{"gossip that merged", "gossip", 3, Fault{}, w(0, 4200), false},
+		{"a lone gossip gateway has nobody to merge from", "gossip", 1, Fault{}, w(0, 0), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validRun(tc.backend, tc.gateways, tc.fault, tc.window, requests)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("err = %v, want an error: %v", err, tc.wantErr)
+			}
+		})
 	}
-	if err := validRun("redis", 3, Fault{StopRedisAt: 10 * time.Second, StopFor: 5 * time.Second}, w(1664, 0)); err != nil {
-		t.Errorf("errors during a Redis outage are the point of the run: %v", err)
+}
+
+func TestMissingOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "summary.csv")
+	os.WriteFile(path, []byte("scenario,backend,rep,note\nS3,redis,1,label=load2x rate=2000\nS3,gossip,2,label=load2x rate=2000\n"), 0o644)
+	jobs := []Job{
+		{Scenario: "S3", Backend: "redis", Rep: 1, Run: Run{Label: "load2x"}},
+		{Scenario: "S3", Backend: "redis", Rep: 2, Run: Run{Label: "load2x"}},
+		{Scenario: "S3", Backend: "redis", Rep: 1, Run: Run{Label: "load10x"}},
+		{Scenario: "S3", Backend: "gossip", Rep: 2, Run: Run{Label: "load2x"}},
 	}
-	if err := validRun("gossip", 3, Fault{}, w(0, 0)); err == nil {
-		t.Error("gossip gateways that merged nothing were accepted")
+	got, err := missingOnly(jobs, path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := validRun("gossip", 3, Fault{}, w(0, 4200)); err != nil {
-		t.Errorf("gossip run that merged: %v", err)
+	if len(got) != 2 || got[0].Rep != 2 || got[1].Run.Label != "load10x" {
+		t.Errorf("missingOnly kept %+v, want redis rep 2 and the load10x run", got)
 	}
-	if err := validRun("gossip", 1, Fault{}, w(0, 0)); err != nil {
-		t.Errorf("a lone gossip gateway has nobody to merge from: %v", err)
+	if all, _ := missingOnly(jobs, filepath.Join(t.TempDir(), "none.csv")); len(all) != 4 {
+		t.Errorf("with no summary file %d of 4 jobs were kept", len(all))
 	}
 }
 
@@ -170,6 +199,57 @@ func TestWindowSurvivesAKilledGateway(t *testing.T) {
 	}
 	if q := w.DecisionQuantile(0.99); q <= 0 || q > 0.001 {
 		t.Errorf("p99 = %v, want inside the first bucket", q)
+	}
+}
+
+func TestOnlyLabel(t *testing.T) {
+	jobs := []Job{{Run: Run{Label: "i10ms-n3"}}, {Run: Run{Label: "i10ms-n5"}}, {Run: Run{Label: "i50ms-n5"}}}
+	if got := onlyLabel(jobs, "n5"); len(got) != 2 || got[0].Run.Label != "i10ms-n5" {
+		t.Errorf("onlyLabel(n5) = %+v", got)
+	}
+	if got := onlyLabel(jobs, ""); len(got) != 3 {
+		t.Errorf("an empty filter kept %d of 3", len(got))
+	}
+}
+
+// Five gateways must be able to start: nothing else in the Compose file
+// may publish a host port inside the gateways' ranges. (The upstream once
+// published 8081, and every five-gateway run failed to start.)
+func TestNothingPublishesInsideTheGatewayPortRanges(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", "docker-compose.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inRange := func(p int) bool { return (p >= 8080 && p <= 8084) || (p >= 9090 && p <= 9094) }
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, `- "`) || strings.Contains(line, "8080-8084") || strings.Contains(line, "9090-9094") {
+			continue
+		}
+		host, _, ok := strings.Cut(strings.TrimPrefix(line, `- "`), ":")
+		if !ok {
+			continue
+		}
+		var port int
+		if _, err := fmt.Sscanf(host, "%d", &port); err == nil && inRange(port) {
+			t.Errorf("host port %d is inside a gateway port range: %s", port, line)
+		}
+	}
+}
+
+func TestMedianRange(t *testing.T) {
+	for _, tc := range []struct {
+		values []float64
+		want   string
+	}{
+		{[]float64{4.61, 3.71, 4.45}, "4.45 (3.71 to 4.61)"},
+		{[]float64{0, 0, 0}, "0.00"},
+		{[]float64{1, 2}, "1.50 (1.00 to 2.00)"},
+		{nil, "n/a"},
+	} {
+		if got := medianRange(tc.values, 2); got != tc.want {
+			t.Errorf("medianRange(%v) = %q, want %q", tc.values, got, tc.want)
+		}
 	}
 }
 

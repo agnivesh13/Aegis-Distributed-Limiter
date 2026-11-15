@@ -48,7 +48,7 @@ Switch models with `/model fable` or `/model opus`.
 **Done when**
 
 - [x] `go build ./...` and `go vet ./...` succeed
-- [x] `docker compose -f deploy/docker-compose.yml up upstream` answers `curl localhost:8081/hello`
+- [x] `docker compose -f deploy/docker-compose.yml up upstream` answers `curl localhost:8089/hello` (the upstream listens on 8081 inside the network; on the host it is published on 8089, outside the gateways' port range)
 - [x] The unprotected counter fails the race detector and the other two pass (`go test -race -tags racedemo ./warmup/counter/`: 34,354 of 100,000 counted)
 
 ## Phase 1: Single-node gateway

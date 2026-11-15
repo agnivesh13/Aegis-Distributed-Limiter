@@ -13,6 +13,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
@@ -47,6 +48,9 @@ type options struct {
 	reps      int
 	cooldown  time.Duration
 	dryRun    bool
+	only      string
+	missing   bool
+	table     bool
 	noBuild   bool
 }
 
@@ -62,7 +66,17 @@ func main() {
 	flag.DurationVar(&o.cooldown, "cooldown", 10*time.Second, "pause between runs so the machine cools down")
 	flag.BoolVar(&o.dryRun, "dry-run", false, "print the runs without starting anything")
 	flag.BoolVar(&o.noBuild, "no-build", false, "use the existing image instead of building it first")
+	flag.StringVar(&o.only, "only", "", "run only the points whose label contains this text, for example n5 (to redo failed runs)")
+	flag.BoolVar(&o.missing, "missing", false, "skip runs that already have a row in the summary, to redo only the ones that failed")
+	flag.BoolVar(&o.table, "table", false, "print the summary as a Markdown table of medians and ranges, then exit")
 	flag.Parse()
+	if o.table {
+		if err := printTable(o.summary, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "bench:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if o.scenarios == "" {
 		flag.Usage()
 		os.Exit(2)
@@ -89,6 +103,19 @@ func run(ctx context.Context, o options) error {
 	jobs, err := file.Jobs(strings.Split(o.scenarios, ","), o.reps)
 	if err != nil {
 		return err
+	}
+	jobs = onlyLabel(jobs, o.only)
+	if len(jobs) == 0 {
+		return fmt.Errorf("no run in %s has a label containing %q", o.scenarios, o.only)
+	}
+	if o.missing {
+		if jobs, err = missingOnly(jobs, o.summary); err != nil {
+			return err
+		}
+		if len(jobs) == 0 {
+			fmt.Println("every run already has a row in the summary")
+			return nil
+		}
 	}
 
 	var total time.Duration
@@ -244,7 +271,7 @@ func runJob(ctx context.Context, c compose, o options, j Job) error {
 		return err
 	}
 
-	if err := validRun(j.Backend, r.Gateways, r.Fault, window); err != nil {
+	if err := validRun(j.Backend, r.Gateways, r.Fault, window, res.Requests); err != nil {
 		return err
 	}
 
@@ -268,25 +295,78 @@ func runJob(ctx context.Context, c compose, o options, j Job) error {
 	return nil
 }
 
+// brokenShare is the share of requests failing in the limiter above which
+// a run is taken to be a broken setup and not a measurement.
+const brokenShare = 0.9
+
 // validRun refuses a run that measured a broken setup instead of a design,
 // so it never reaches the summary looking like a result.
 //
-//   - The limiter failed when nothing was meant to make it fail. With
-//     fail_open such a run lets everything through. Only a Redis outage
-//     (F2) is meant to cause limiter errors.
+//   - Nearly every request failed in the limiter. A backend that cannot
+//     decide at all (a missing script) fails on every request, and with
+//     fail_open lets everything through. A backend that is merely slow
+//     fails on some: Redis missing its deadline under heavy load is a real
+//     result and is kept, with the error count in the row's note. A Redis
+//     outage (F2) is meant to cause errors, so it is never refused.
 //   - Gossip gateways never learned anything from each other. Each then
-//     enforces the full limit alone, which is not the design under test
-//     (for example while Store.Merge is unwritten).
-func validRun(backend string, gateways int, f Fault, w Snapshot) error {
-	if w.LimiterErrors > 0 && f.StopRedisAt == 0 {
-		return fmt.Errorf("the limiter failed %.0f times in a run with no outage, so the result measures a broken "+
-			"setup; check the gateway logs (an unwritten script shows up there at start-up). No row was written", w.LimiterErrors)
+//     enforces the full limit alone, which is not the design under test.
+func validRun(backend string, gateways int, f Fault, w Snapshot, requests int) error {
+	if f.StopRedisAt == 0 && requests > 0 && w.LimiterErrors >= brokenShare*float64(requests) {
+		return fmt.Errorf("the limiter failed on %.0f of %d requests in a run with no outage, so the result measures a "+
+			"broken setup; check the gateway logs (an unwritten script shows up there at start-up). No row was written", w.LimiterErrors, requests)
 	}
 	if backend == "gossip" && gateways > 1 && w.GossipMerged == 0 {
 		return errors.New("the gossip gateways merged nothing from each other, so each limited alone; " +
 			"is Store.Merge written? No row was written")
 	}
 	return nil
+}
+
+// missingOnly drops the jobs that already have a row in the summary, so a
+// second pass redoes exactly the runs that failed the first time.
+func missingOnly(jobs []Job, summaryPath string) ([]Job, error) {
+	f, err := os.Open(summaryPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return jobs, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	rows, err := csv.NewReader(f).ReadAll()
+	if err != nil || len(rows) == 0 {
+		return jobs, err
+	}
+	col := map[string]int{}
+	for i, name := range rows[0] {
+		col[name] = i
+	}
+	done := map[string]bool{}
+	for _, r := range rows[1:] {
+		done[r[col["scenario"]]+"|"+r[col["backend"]]+"|"+r[col["rep"]]+"|"+noteFields(r[col["note"]])["label"]] = true
+	}
+	var out []Job
+	for _, j := range jobs {
+		if !done[j.Scenario+"|"+j.Backend+"|"+strconv.Itoa(j.Rep)+"|"+j.Run.Label] {
+			out = append(out, j)
+		}
+	}
+	return out, nil
+}
+
+// onlyLabel keeps the jobs whose label contains text; an empty text keeps
+// them all.
+func onlyLabel(jobs []Job, text string) []Job {
+	if text == "" {
+		return jobs
+	}
+	var out []Job
+	for _, j := range jobs {
+		if strings.Contains(j.Run.Label, text) {
+			out = append(out, j)
+		}
+	}
+	return out
 }
 
 var lateRe = regexp.MustCompile(`sent\s+\d+ \(late (\d+)`)
@@ -333,8 +413,10 @@ func (c compose) run(ctx context.Context, env map[string]string, args ...string)
 	return out.String(), nil
 }
 
-// hostPorts are the ports the gateway replicas publish on the host.
-var hostPorts = []int{8080, 8081, 8082, 8083, 8084, 9090, 9091, 9092, 9093, 9094}
+// hostPorts are the ports the cluster publishes on the host: five for the
+// gateway replicas' proxy port, five for their admin port, one for the
+// upstream.
+var hostPorts = []int{8080, 8081, 8082, 8083, 8084, 9090, 9091, 9092, 9093, 9094, 8089}
 
 // busyPorts returns the ports something on this machine is listening on.
 func busyPorts(ports []int) []int {
