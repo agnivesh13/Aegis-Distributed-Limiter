@@ -119,6 +119,24 @@ The schedule that decides when each load-test request leaves, and the analyzer t
 
 Explained in [10-measuring.md](10-measuring.md).
 
+## Step 13: The gateway itself (Opus)
+
+Files: [internal/config/](../internal/config/), [internal/proxy/](../internal/proxy/), [internal/metrics/](../internal/metrics/), [internal/admin/](../internal/admin/), [cmd/gateway/](../cmd/gateway/), [cmd/upstream/](../cmd/upstream/)
+
+With the limiters in place, the session switched to Opus for the program that uses them: configuration, the middleware chain, metrics, the admin port and graceful shutdown. Explained in [11-the-gateway.md](11-the-gateway.md).
+
+## Step 14: Containers, load and the real checks (Opus)
+
+Files: [Dockerfile](../Dockerfile), [deploy/](../deploy/), [cmd/loadgen/](../cmd/loadgen/), [.github/workflows/ci.yml](../.github/workflows/ci.yml)
+
+One image for every program, a Compose file for the whole cluster, CI, the load generator, and the memberlist transport for gossip. Then every "Done when" check that could run was run in the real cluster. Explained in [12-running-the-cluster.md](12-running-the-cluster.md).
+
+## Step 15: The bench runner and the first scenario (Opus)
+
+Files: [cmd/bench/](../cmd/bench/), [bench/](../bench/)
+
+One command per scenario, the full matrix as data, the chart script and the Grafana dashboard. S0, the noise floor, ran three times and came in under 0.04%. Explained in [13-bench-runner.md](13-bench-runner.md).
+
 ## What could not be done yet
 
 Some Fable tasks wait on other work and were left:
@@ -127,8 +145,8 @@ Some Fable tasks wait on other work and were left:
 | --- | --- |
 | Review of your token bucket, Lua script and merge | You writing them |
 | Review of each whole phase | Opus building the rest of each phase |
-| The S0 noise-floor check | A real cluster and real benchmark runs |
-| The prediction-against-measurement analysis | The Phase 4 results |
+| Every scenario except S0 | Your `sliding_window.lua` (Redis runs) and `Merge` (gossip runs) |
+| The prediction-against-measurement analysis, the README results and the report | The Phase 4 results |
 
 ## The commits
 
@@ -142,7 +160,8 @@ Some Fable tasks wait on other work and were left:
 | `9c3f5b5` | The first seven notes in `learnings/` |
 | `50cd93e` | The Redis backend, its Lua token bucket and integration tests |
 | `42cae19` | The gossip backend: store, codec, node and simulations |
-| the commit after `42cae19` | The load schedule and the analyzer |
+| `44634ca` | The load schedule and the analyzer |
+| the commits after `44634ca` | The gateway, the cluster, the bench runner (Opus) |
 
 Each commit builds and passes its tests on its own. Small commits like these mean that if something breaks later, `git bisect` can find the exact commit that broke it.
 

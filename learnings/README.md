@@ -20,6 +20,9 @@ Read them in order the first time. Each file assumes the ones before it.
 | [08-redis-backend.md](08-redis-backend.md) | Why GET-then-SET over-admits, how a Lua script fixes it, deadlines and retries, and testing against a real Redis |
 | [09-gossip-backend.md](09-gossip-backend.md) | Deciding without Redis: grow-only counters, the wire format, the gossip loop, fuzzing, and simulating a cluster in one process |
 | [10-measuring.md](10-measuring.md) | Open-loop load, late sends, replaying a run through a reference limiter, percentiles, and a bug the tests caught |
+| [11-the-gateway.md](11-the-gateway.md) | Reverse proxies, layered config, the middleware chain, Prometheus metrics, health against readiness, graceful shutdown |
+| [12-running-the-cluster.md](12-running-the-cluster.md) | Docker images and Compose, scaling behind one name, the load generator, memberlist, and what the real checks showed |
+| [13-bench-runner.md](13-bench-runner.md) | Running experiments from one command, the scenario matrix, reading histograms, the noise floor, the charts |
 
 ## How to study with these
 

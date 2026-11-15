@@ -256,6 +256,104 @@ bash: unexpected EOF while looking for matching `''
 
 **Lesson.** Once a script is longer than a few lines or contains quotes, put it in a file. Getting quotes through a shell correctly is harder than it looks.
 
+## 17. A check that looked like a failure: 105 requests, no 429
+
+**What it looked like.** To see a `429`, I sent 105 requests with `curl` in a loop against a limit of 100 per second. All 105 got `200`.
+
+**Cause.** Starting a new `curl` process 105 times took about 2 seconds. The sliding window counts requests in the last second, so the limit was never reached. The limiter was right; the test was too slow to test it.
+
+**Fix.** Send the burst with the load generator: 300 requests in 300 ms. Exactly 100 got through and the next `curl` got `429` with `Retry-After: 1`.
+
+**Lesson.** Before calling something broken, check that your test actually creates the condition you are testing. A rate limit test must send faster than the rate.
+
+## 18. memberlist panics when closed twice
+
+**What it looked like.** The transport test passed every check and then crashed while cleaning up:
+
+```text
+panic: leave after shutdown
+```
+
+**Cause.** The test closed one node on purpose, then the clean-up closed every node, so that node was closed twice. memberlist panics if you ask it to leave after it has shut down. The gossip `Node` also closes its transport, so in the gateway a double close could happen too.
+
+**Fix.** `Close` runs its body inside `sync.Once`, the same pattern the memory backend uses, and remembers the first result.
+
+**Lesson.** Make `Close` safe to call more than once. Callers cannot always know whether something else already closed it, and Go code commonly does `defer x.Close()` as well as closing explicitly.
+
+## 19. Every request allowed, and nothing said why
+
+**What it looked like.** Three gateways on Redis, 6,000 requests against a limit of 100 per second: all 6,000 allowed.
+
+**Cause.** The route used the sliding window. The Redis sliding-window script is still a stub, so every `Allow` returned "unsupported", and `fail_open` let each request through, exactly as configured. The only sign was `gateway_limiter_errors_total`, which nobody reads during a curl test.
+
+**Fix.** At start-up the gateway now asks its backend once per route whether it can decide that route's algorithm, and logs an error naming any route it cannot. Details in [11-the-gateway.md](11-the-gateway.md). The exactness check moved to the token-bucket route, whose script exists: 319 admitted, the exact figure.
+
+**Lesson.** "Fail open" is a sensible policy for an outage and a terrible one for a misconfiguration, because both look like success. When a failure would be silent, make it loud somewhere a person will see it.
+
+## 20. A NUL byte typed into the source code
+
+**What it looked like**
+
+```text
+cmd\gateway\main.go:152:34: illegal character NUL
+```
+
+**Cause.** I wanted the six characters `"\x00"` in Go source: an escape that means "byte zero". The text went through bash, then Python, and each layer treated `\x00` as an escape of its own. The file ended up with an actual zero byte in it, which Go refuses. My first fix went through the same layers and failed the same way.
+
+**Fix.** A small script in a file, which built the four characters from their byte values (`0x5C 0x78 0x30 0x30`), so no layer had a chance to interpret them.
+
+**Lesson.** Problem 16 again, in a sharper form: every layer of quoting is a chance for an escape to be eaten. When exact bytes matter, put the script in a file, and check the result rather than trusting it.
+
+## 21. A summary that did not match its own raw data
+
+**What it looked like.** I wrote the microbenchmark summary table from one run, then saved the raw output of a *second* run under it. The numbers were close but not the same.
+
+**Cause.** Benchmarks vary a little from run to run. Two runs, two sets of numbers, one file.
+
+**Fix.** Rebuilt the table by reading the medians out of the raw lines saved in the same file.
+
+**Lesson.** Plan rule 7: every number must trace to a file. The safest way is to compute the summary *from* the saved file, never alongside it.
+
+## 22. A test expectation off by one interval
+
+**What it looked like.** The burst test failed: "run took 398.6 ms, want at least 400 ms".
+
+**Cause.** 100 requests at 500 per second leave at 0, 2, 4, ..., 198 ms. The last one leaves at 198 ms, not 200. My expectation counted the gaps wrong: 100 requests have 99 gaps between them. This is the classic **fencepost error** (a 10-metre fence with posts every metre has 11 posts).
+
+**Fix.** Expect at least 398 ms, with the reason written in a comment.
+
+**Lesson.** When a test fails by almost exactly one step, suspect the test's arithmetic before the code.
+
+## 23. A histogram bucket boundary that is not quite 15 µs
+
+**What it looked like.** A metrics test expected a 15 µs observation in the second bucket. It landed in the first.
+
+**Cause.** Buckets start at 10 µs and grow by 1.5. In binary floating point, `0.00001 × 1.5` is `1.5000000000000002e-05`, a hair *above* 15 µs. So 15 µs is "at or below" the first upper bound, not above it. The same binary-fraction effect as problem 8.
+
+**Fix.** Use 12 µs, which is clearly inside the second bucket, and check the bucket labels as Prometheus actually prints them.
+
+**Lesson.** Never test with a value that sits exactly on a computed floating-point boundary.
+
+## 24. A warning that blamed the wrong thing
+
+**What it looked like.** During the `fail_closed` outage run, the load generator printed "this machine may not sustain the rate".
+
+**Cause.** One warning covered two situations: late sends (the laptop cannot keep up, so the run is invalid) and errors (which, in a fault run, are the expected 503s).
+
+**Fix.** Two separate messages. Late sends get the warning; non-2xx, non-429 answers get a note saying they are expected during fault runs.
+
+**Lesson.** A warning that is wrong half the time trains people to ignore it. Say exactly what happened and what it means.
+
+## 25. Two services on one host port
+
+**What it looked like.** While reading metrics I noticed Prometheus was set to host port 9091, inside the 9090 to 9094 range the gateway replicas use for their admin ports.
+
+**Cause.** I picked the next free-looking number without checking the range a few lines above.
+
+**Fix.** Prometheus moved to 9099.
+
+**Lesson.** With port ranges, check the whole range, not just the first number. Nothing had failed yet; with the observability profile and three or more gateways it would have.
+
 ## The pattern behind all of these
 
 Looking back over the list:

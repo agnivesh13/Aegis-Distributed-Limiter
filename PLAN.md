@@ -196,7 +196,8 @@ The head-to-head comparison in Phase 4 uses the sliding window counter, the one 
 
 - Every response carries `X-Gateway-ID`, so the load generator can attribute each request to an instance.
 - Ports: `:8080` proxy; `:9090` admin; `:7946` gossip (TCP and UDP).
-- Admin endpoints, never rate limited: `/healthz`, `/readyz`, `/metrics`, `/debug/limiter?key=...`.
+- Admin endpoints, never rate limited: `/healthz`, `/readyz`, `/metrics`, `/debug/limiter?key=...`, and with `DEBUG_FAULTS=1` on the gossip backend `POST` (block) or `DELETE` (unblock) `/debug/gossip/block?peer=...`.
+- On start-up the gateway asks its backend once per route whether it can decide that route's algorithm, and logs an error for any it cannot; such a route would otherwise follow `on_error` on every request.
 - Client identity: the `X-API-Key` header; if absent, the host part of `RemoteAddr`. `X-Forwarded-For` is used only when `trust_forwarded_for` is true.
 
 ### Configuration
@@ -238,7 +239,9 @@ routes:                       # longest path_prefix wins
     limit: { algorithm: token_bucket, rate: 50, period: 1s, burst: 100 }
 ```
 
-The gateway validates the config on startup and exits with a clear message on any invalid value. Environment variables override the file, so the bench runner can change one variable per run.
+The gateway validates the config on startup and exits with a clear message on any invalid value. Environment variables override the file, so the bench runner can change one variable per run. Besides the ones marked above: `GATEWAY_UPSTREAM`, `GOSSIP_JOIN`, `GOSSIP_RETRANSMIT`, `GOSSIP_FULL_SYNC_INTERVAL`.
+
+`deploy/gateway-bench.yaml` holds the configuration for experiments: a single sliding-window route, the one algorithm every backend implements. Compose picks the file through `GATEWAY_CONFIG`.
 
 ### Metrics
 
@@ -266,7 +269,7 @@ The gateway validates the config on startup and exits with a clear message on an
 | `redis` | `redis:7-alpine` or newer | Started with persistence off |
 | `toxiproxy` | `ghcr.io/shopify/toxiproxy` | Profile `faults`; sits between gateways and Redis to add delay |
 | `loadgen` | Same image, different command | Run on demand; writes CSV into a mounted `bench/results/` |
-| `prometheus`, `grafana` | Official images | Profile `observability` |
+| `prometheus`, `grafana` | Official images | Profile `observability`; Prometheus on host port 9099, Grafana on 3000 |
 
 - One multi-stage `Dockerfile` builds every binary into one small image; each service selects its binary with `command`.
 - Inside the Compose network the name `gateway` resolves to every replica. The load generator and the gossip join both rely on that.
