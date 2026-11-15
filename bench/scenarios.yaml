@@ -1,0 +1,124 @@
+# The scenario matrix from PLAN.md ("Experiment design"). Run one with
+#   go run ./cmd/bench -scenario S1
+# Each run starts a fresh cluster, so runs cannot affect each other.
+#
+# A run inherits every field it does not set from `defaults`. Rates are the
+# total offered by the load generator across all gateways; the limit is per
+# key, so 10 keys at 100/s make a total limit of 1,000/s and 2,000/s is 2x.
+
+defaults:
+  gateways: 3
+  rate: 2000
+  keys: 10
+  dist: uniform
+  duration: 35s            # what the load generator runs for
+  warmup: 5s               # discarded by the analyzer; 30 s are measured
+  reps: 3
+  limit: { rate: 100, period: 1s }
+  env:
+    GOSSIP_INTERVAL: 100ms
+    GOSSIP_FANOUT: "2"
+
+scenarios:
+  - id: S0
+    question: How noisy is the measurement itself?
+    backends: [memory]
+    runs:
+      - { label: n1, gateways: 1 }
+
+  - id: S1
+    question: Head-to-head at the defaults
+    backends: [redis, gossip]
+    runs:
+      - { label: default }
+
+  - id: S2
+    question: Effect of cluster size
+    backends: [redis, gossip]
+    runs:
+      - { label: n1, gateways: 1 }
+      - { label: n3, gateways: 3 }
+      - { label: n5, gateways: 5 }
+
+  - id: S3
+    question: Effect of load
+    backends: [redis, gossip]
+    runs:
+      - { label: load0.5x, rate: 500 }
+      - { label: load1x, rate: 1000 }
+      - { label: load2x, rate: 2000 }
+      - { label: load10x, rate: 10000 }
+
+  - id: S4
+    question: Effect of gossip interval
+    backends: [gossip]
+    runs:
+      - { label: i10ms-n3, gateways: 3, env: { GOSSIP_INTERVAL: 10ms } }
+      - { label: i50ms-n3, gateways: 3, env: { GOSSIP_INTERVAL: 50ms } }
+      - { label: i100ms-n3, gateways: 3, env: { GOSSIP_INTERVAL: 100ms } }
+      - { label: i500ms-n3, gateways: 3, env: { GOSSIP_INTERVAL: 500ms } }
+      - { label: i10ms-n5, gateways: 5, env: { GOSSIP_INTERVAL: 10ms } }
+      - { label: i50ms-n5, gateways: 5, env: { GOSSIP_INTERVAL: 50ms } }
+      - { label: i100ms-n5, gateways: 5, env: { GOSSIP_INTERVAL: 100ms } }
+      - { label: i500ms-n5, gateways: 5, env: { GOSSIP_INTERVAL: 500ms } }
+
+  - id: S5
+    question: Effect of fanout
+    backends: [gossip]
+    runs:
+      - { label: f1-n5, gateways: 5, env: { GOSSIP_FANOUT: "1" } }
+      - { label: f2-n5, gateways: 5, env: { GOSSIP_FANOUT: "2" } }
+      - { label: f4-n5, gateways: 5, env: { GOSSIP_FANOUT: "4" } }
+
+  # Every delay value goes through toxiproxy, 0 ms included, so the proxy's
+  # own overhead is in every point and cancels out.
+  - id: S6
+    question: Effect of Redis network delay
+    backends: [redis]
+    runs:
+      - { label: delay0ms, fault: { redis_delay: 0ms } }
+      - { label: delay1ms, fault: { redis_delay: 1ms } }
+      - { label: delay5ms, fault: { redis_delay: 5ms } }
+
+  # 5 s of silence, then 10x the total limit for 1 s. Nothing to warm up.
+  - id: S7
+    question: Burst from idle
+    backends: [redis, gossip]
+    runs:
+      - { label: burst, shape: burst, idle: 5s, burst_rate: 10000, burst_for: 1s, warmup: 0s }
+
+  - id: S8
+    question: Skewed keys
+    backends: [redis, gossip]
+    runs:
+      - { label: zipf1000, keys: 1000, dist: zipf }
+
+  # Read the result by eye: the step at which p99 doubles from the first.
+  - id: S9
+    question: Throughput ceiling
+    backends: [memory, redis, gossip]
+    reps: 1
+    runs:
+      - { label: r2000, rate: 2000 }
+      - { label: r4000, rate: 4000 }
+      - { label: r8000, rate: 8000 }
+      - { label: r16000, rate: 16000 }
+
+  - id: F1
+    question: Gateway crash
+    backends: [redis, gossip]
+    runs:
+      - { label: kill-at-10s, fault: { kill_gateway_at: 10s } }
+
+  - id: F2
+    question: Redis outage
+    backends: [redis]
+    runs:
+      - { label: fail-open, env: { LIMITER_ON_ERROR: fail_open }, fault: { stop_redis_at: 10s, stop_for: 5s } }
+      - { label: fail-closed, env: { LIMITER_ON_ERROR: fail_closed }, fault: { stop_redis_at: 10s, stop_for: 5s } }
+
+  - id: F3
+    question: Network partition
+    backends: [gossip]
+    runs:
+      - { label: split-2-2, gateways: 4, fault: { partition_at: 10s, partition_for: 10s } }
