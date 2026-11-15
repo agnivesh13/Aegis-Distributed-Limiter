@@ -2,7 +2,7 @@
 
 Every task from [PLAN.md](PLAN.md), who owns it, and whether it is done. PLAN.md says what to build; this file only tracks progress.
 
-**Current position:** Fable and Opus have both finished every task that does not wait on someone else, through Phase 4, and the cluster runs end to end in Docker. What is left waits on your three pieces, on real benchmark runs, or on reviews. Next up: your three pieces (token bucket, `sliding_window.lua`, `Merge`), then Fable's phase reviews, then the full scenario runs.
+**Current position:** Fable and Opus have both finished every task that does not wait on someone else, through Phase 4, and the cluster runs end to end in Docker. What is left waits on your three pieces, on real benchmark runs, or on reviews. Fable has reviewed the Opus work; the findings are under "Review follow-ups" below. Next up: your three pieces (token bucket, `sliding_window.lua`, `Merge`) and Opus's follow-ups R1 to R5, then the full scenario runs.
 
 ## How to use this file
 
@@ -67,7 +67,7 @@ Switch models with `/model fable` or `/model opus`.
 - [x] **Opus:** `cmd/loadgen` v0: `-targets`, `-rate`, `-duration`, `-key`; open-loop sender; prints counts and p50, p95, p99
 - [x] **Opus:** Compose: add `gateway` with the memory backend
 - [x] **Opus:** `BenchmarkAllow`; output saved to `bench/results/phase1-microbench.txt` (sliding window only: re-run once your token bucket exists, the benchmark skips it until then)
-- [ ] **Fable:** review of the whole phase
+- [ ] **Fable:** review of the whole phase (first pass done 2026-11-15, see "Review follow-ups"; the final pass waits on your piece)
 - [ ] `docs/notes/phase-1.md`
 
 **Done when**
@@ -91,7 +91,7 @@ Switch models with `/model fable` or `/model opus`.
 - [x] **Opus:** `/readyz` reports not ready while Redis is unreachable
 - [x] **Opus:** Compose: add `redis`, make `gateway` scalable, add `toxiproxy` under the `faults` profile
 - [x] **Opus:** load generator resolves the `gateway` DNS name to all replicas and round-robins
-- [ ] **Fable:** review of the whole phase
+- [ ] **Fable:** review of the whole phase (first pass done 2026-11-15, see "Review follow-ups"; the final pass waits on your piece)
 - [ ] `docs/notes/phase-2.md`
 
 **Done when**
@@ -115,7 +115,7 @@ Switch models with `/model fable` or `/model opus`.
 - [x] **Opus:** admin endpoint `/debug/limiter?key=...`
 - [x] **Opus:** admin endpoint `/debug/gossip/block?peer=...`, only when `DEBUG_FAULTS=1`
 - [x] **Opus:** Compose: run with `LIMITER_BACKEND=gossip`, joining through the `gateway` DNS name
-- [ ] **Fable:** review of the whole phase
+- [ ] **Fable:** review of the whole phase (first pass done 2026-11-15, see "Review follow-ups"; the final pass waits on your piece)
 - [ ] `docs/notes/phase-3.md`
 
 **Done when**
@@ -136,8 +136,8 @@ Switch models with `/model fable` or `/model opus`.
 - [x] **Opus:** `bench/scenarios.yaml`: the scenario matrix
 - [x] **Opus:** `bench/plot.py`: the two charts from `summary.csv`
 - [ ] **Opus:** run every scenario 3 times. S0 is done (3 reps, in `summary.csv`). The rest wait on `sliding_window.lua` (every Redis scenario) and `Merge` (every gossip scenario)
-- [ ] **Fable:** check the noise floor (S0); if it is above 1%, find and fix the measurement error
-- [ ] **Fable:** review of the whole phase
+- [x] **Fable:** check the noise floor (S0): passes, at most 0.034% against the 1% rule (details in the review)
+- [ ] **Fable:** review of the whole phase (first pass done 2026-11-15, see "Review follow-ups"; the final pass waits on your piece)
 - [ ] `docs/notes/phase-4.md`
 
 **Done when**
@@ -163,6 +163,32 @@ Switch models with `/model fable` or `/model opus`.
 
 - [ ] Someone who has never seen the repo can clone it, run one command, and reproduce one row of the results table
 - [ ] Every number in the README and the report traces to a file in `bench/results/`
+
+## Review follow-ups
+
+From Fable's review of the gateway, cluster and bench runner: [docs/reviews/2026-11-15-gateway-cluster-bench.md](docs/reviews/2026-11-15-gateway-cluster-bench.md). Each item there says where the problem is, how to fix it and how to test the fix.
+
+**Before running the scenario matrix**
+
+- [ ] **Opus:** R1: a non-fault run with limiter errors must fail, not append a row to `summary.csv`
+- [ ] **Opus:** R2: snapshot and subtract per gateway, so a killed gateway (F1) cannot make the window negative
+- [ ] **Opus:** R3: pass every `config.EnvNames()` variable through Compose; reject unknown scenario `env` keys
+- [ ] **Opus:** R4: S9 on the memory backend runs with one gateway
+- [ ] **Opus:** R5: `-start-at` flag in `cmd/loadgen`, used by `cmd/bench` to time faults and the warm-up snapshot
+
+**Soon**
+
+- [ ] **Opus:** R6: with `trust_forwarded_for`, use the last `X-Forwarded-For` entry, not the first
+- [ ] **Opus:** R7: reject API keys longer than 128 bytes with `400`
+- [ ] **Opus:** R8: correct the help text of `gateway_upstream_seconds`
+- [ ] **Opus:** R9: a cancelled client request is not a limiter error
+- [ ] **Opus:** R10: one percentile function, shared by the load generator and the analyzer
+
+**Small**
+
+- [ ] **Opus:** R11: reject an explicit `cost: 0`
+- [ ] **Opus:** R12: `cmd/bench` checks for a running dev cluster on the same host ports and says so
+- [ ] **Opus:** R13: README says the Grafana login is for local use only
 
 ## Open questions
 

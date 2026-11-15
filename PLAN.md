@@ -884,6 +884,7 @@ Aegis-Distributed-Limiter/
   docs/
     report.md
     notes/                      one file per phase
+    reviews/                    code reviews: findings, fixes and tests to add
 ```
 
 **Tooling**

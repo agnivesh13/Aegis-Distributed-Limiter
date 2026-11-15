@@ -23,6 +23,7 @@ Read them in order the first time. Each file assumes the ones before it.
 | [11-the-gateway.md](11-the-gateway.md) | Reverse proxies, layered config, the middleware chain, Prometheus metrics, health against readiness, graceful shutdown |
 | [12-running-the-cluster.md](12-running-the-cluster.md) | Docker images and Compose, scaling behind one name, the load generator, memberlist, and what the real checks showed |
 | [13-bench-runner.md](13-bench-runner.md) | Running experiments from one command, the scenario matrix, reading histograms, the noise floor, the charts |
+| [14-code-review.md](14-code-review.md) | How a code review is done, and what it found: silent wrong answers, a spoofable header, unbounded input, misleading metrics |
 
 ## How to study with these
 

@@ -137,6 +137,12 @@ Files: [cmd/bench/](../cmd/bench/), [bench/](../bench/)
 
 One command per scenario, the full matrix as data, the chart script and the Grafana dashboard. S0, the noise floor, ran three times and came in under 0.04%. Explained in [13-bench-runner.md](13-bench-runner.md).
 
+## Step 16: Fable reviews the Opus work
+
+File: [docs/reviews/2026-11-15-gateway-cluster-bench.md](../docs/reviews/2026-11-15-gateway-cluster-bench.md)
+
+With the model switched back to Fable, the gateway, cluster and bench runner were reviewed. Thirteen findings, five of which must be fixed before the scenario matrix is run because they would put wrong numbers into the results. The worst was reproduced with a throwaway test. The S0 noise floor was checked and passes. Explained in [14-code-review.md](14-code-review.md).
+
 ## What could not be done yet
 
 Some Fable tasks wait on other work and were left:
