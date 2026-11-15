@@ -354,6 +354,42 @@ cmd\gateway\main.go:152:34: illegal character NUL
 
 **Lesson.** With port ranges, check the whole range, not just the first number. Nothing had failed yet; with the observability profile and three or more gateways it would have.
 
+## 26. A count of zero that meant "did not compile"
+
+**What it looked like.** To test the merge tests, I broke the merge four ways and counted failing tests each time. One mutation reported 0 failing tests, as if the tests had missed the bug.
+
+**Cause.** That edit left a variable unused, which Go refuses to compile. The package never built, no test ran, and so no line said "FAIL: TestSomething". My counter looked only for those lines and found none.
+
+**Fix.** Rewrote the mutation so it compiled. The tests then caught it (two failing cases).
+
+**Lesson.** "No failures" and "nothing ran" look the same if you only count failures. When checking a result, make sure the thing ran at all. This is problem 11 again: a check that passes for the wrong reason.
+
+## 27. Windows refused a port it had just handed out
+
+**What it looked like**
+
+```text
+failed to start UDP listener on "127.0.0.1" port 58067: bind: An attempt was made to access a socket in a way forbidden by its access permissions.
+```
+
+A test that had passed many times failed once.
+
+**Cause.** The test asks for "any free port". memberlist needs the same port number for TCP and UDP. Windows keeps some UDP port ranges reserved for Hyper-V and Docker, so now and then the number that was free for TCP is forbidden for UDP.
+
+**Fix.** The test tries up to ten times, getting a different port each time.
+
+**Lesson.** A test that fails one time in fifty is still a broken test, and it will fail at the worst moment. Find the cause; do not just run it again. Here the cause was outside our code, so retrying is the honest fix.
+
+## 28. A blank line that looked like missing data
+
+**What it looked like.** A script printed each gateway's totals after a gossip run. One of the three lines came out blank, as if that gateway had no counts.
+
+**Cause.** The gateway was fine. My PowerShell one-liner mishandled a list with a single item. Printing the raw JSON showed all three gateways with identical counts.
+
+**Fix.** Looked at the raw output before drawing a conclusion.
+
+**Lesson.** When a summary looks wrong, look at the raw data before believing the summary or the system. The bug may be in the thing doing the summarising.
+
 ## The pattern behind all of these
 
 Looking back over the list:

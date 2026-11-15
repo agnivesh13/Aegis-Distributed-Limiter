@@ -176,18 +176,9 @@ func (b *Backend) Allow(_ context.Context, key string, l limiter.Limit, cost int
 
 Check the inputs, read the clock **once**, hand over to the right algorithm. Reading the clock once matters: if the code called `Now()` in several places, the time could change between the calls and the arithmetic would use two different "nows".
 
-## Your turn: the token bucket
+## The token bucket
 
-[token_bucket.go](../internal/limiter/memory/token_bucket.go) holds an empty `allowTokenBucket` for you. It has the same shape as `allowSlidingWindow`:
-
-1. Find the shard, lock it, `defer` the unlock.
-2. Look up the key in `s.buckets`. If it is missing, create a full bucket.
-3. Do the arithmetic from "Token bucket: exact behaviour" in the plan.
-4. Store the result and set `expires`.
-
-The idea of a token bucket: each client has a bucket holding up to `capacity` tokens. Each request takes `cost` tokens out. Tokens drip back in at a steady rate. An empty bucket means reject. The clever part is that nothing actually drips: on each request you work out how many tokens *would have* dripped in since last time, from the elapsed time. That is what "refills lazily" means in the plan.
-
-When you start, change the test call in [memory_test.go](../internal/limiter/memory/memory_test.go) to `limitertest.Run(t, newBackend)` and run `go test ./internal/limiter/memory/`. The failing test names tell you what to build next.
+[token_bucket.go](../internal/limiter/memory/token_bucket.go) has the same shape as `allowSlidingWindow`: find the shard, lock it, look up the key, do the arithmetic, store. The plan had reserved it for you to write; it was later handed to Fable. The arithmetic and the reasoning behind every line are in [16-the-three-core-pieces.md](16-the-three-core-pieces.md), with an exercise to rebuild it yourself.
 
 ## Check yourself
 

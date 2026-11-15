@@ -25,6 +25,8 @@ Read them in order the first time. Each file assumes the ones before it.
 | [13-bench-runner.md](13-bench-runner.md) | Running experiments from one command, the scenario matrix, reading histograms, the noise floor, the charts |
 | [14-code-review.md](14-code-review.md) | How a code review is done, and what it found: silent wrong answers, a spoofable header, unbounded input, misleading metrics |
 | [15-review-fixes.md](15-review-fixes.md) | How each finding was fixed and proved, and the extra bug the fixes uncovered |
+| [16-the-three-core-pieces.md](16-the-three-core-pieces.md) | **Read this one twice.** The token bucket, the Lua script and the gossip merge, line by line, with exercises to rebuild each from memory |
+| [17-warmup-exercises.md](17-warmup-exercises.md) | A worker pool, a counter written three ways, a logging middleware and table-driven tests |
 
 ## How to study with these
 

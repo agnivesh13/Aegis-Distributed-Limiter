@@ -117,16 +117,18 @@ Every "Done when" check that could run was run in the real cluster. Results are 
 
 ### Microbenchmarks
 
+Sliding window (the token bucket's figures are within 15% of these):
+
 | | 1 CPU | 4 CPUs |
 | --- | --- | --- |
-| One hot key | 101 ns | 125 ns |
-| 10,000 keys | 118 ns | 51 ns |
+| One hot key | 101 ns | 130 ns |
+| 10,000 keys | 122 ns | 50 ns |
 
-With one key, four cores are no faster than one: they all queue for one shard's lock. Spread over 10,000 keys, the 64 shards let four cores work at once and throughput rises 2.3×. This is the clearest picture of why the memory backend is sharded. Every call made zero memory allocations.
+With one key, four cores are no faster than one: they all queue for one shard's lock. Spread over 10,000 keys, the 64 shards let four cores work at once and throughput rises 2.4×. This is the clearest picture of why the memory backend is sharded. Every call made zero memory allocations.
 
 ### Phase 2, three gateways on Redis
 
-The sliding-window route let everything through, for the reason explained in [11-the-gateway.md](11-the-gateway.md). The token-bucket route, whose script exists, gave **319 admitted** across three gateways. Worked out by hand, a single exact limiter admits 20 from the full bucket plus 10 per second for the 29.995 s between the first and last request: 20 + 299 = 319. Three gateways together behaved exactly like one limiter.
+At first the sliding-window route let everything through, for the reason explained in [11-the-gateway.md](11-the-gateway.md). Once the script was written, the same check gave **3,000 admitted against an ideal of 3,000**. The token-bucket route gave **319 admitted** across three gateways. Worked out by hand, a single exact limiter admits 20 from the full bucket plus 10 per second for the 29.995 s between the first and last request: 20 + 299 = 319. Three gateways together behaved exactly like one limiter.
 
 Redis stopped for about 6 seconds under load:
 
@@ -140,7 +142,16 @@ The p95 of 52 ms is the 50 ms limiter deadline doing its job: no request waited 
 
 ### Phase 3, three gateways on gossip
 
-The cluster formed (each gateway saw 3 members), about 210 packets per gateway crossed during a 10 s run, and the block endpoint answered. The debug view showed each gateway knowing only its own count, which is exactly what an empty `Merge` means. The convergence checks wait for yours.
+The cluster formed (each gateway saw 3 members), about 210 packets per gateway crossed during a 10 s run, and the block endpoint answered. While `Merge` was an empty stub, the debug view showed each gateway knowing only its own count.
+
+With `Merge` written, both of the plan's checks pass:
+
+| Gossip interval | Admitted | Ideal | Over-admission |
+| --- | --- | --- | --- |
+| 500 ms | 3,626 | 2,983 | 21.6% |
+| 10 ms | 2,996 | 2,972 | 0.8% |
+
+And within a second of the load stopping, all three gateways showed the same total and the same per-node counts (20, 23 and 26). The longer a gateway waits to tell the others, the more it admits in the dark. That is the trade-off of the whole project in one table.
 
 ## Check yourself
 

@@ -14,14 +14,14 @@ Every task from [PLAN.md](PLAN.md), who owns it, and whether it is done. PLAN.md
 
 | Owner | Takes |
 | --- | --- |
-| **You** | The three pieces to defend in interviews, written by hand: the in-memory token bucket, the sliding-window Lua script, the gossip counter merge |
-| **Fable** | Work where a subtle bug silently corrupts results: the limiter contract and its tests, concurrency, gossip, the measurement code. Also reviews the hand-written pieces |
+| **You** | Only what a model cannot do: reading A Tour of Go, studying `learnings/` (especially note 16), and the screen recording. On 2026-11-15 you handed every other task of yours to Fable, including the three pieces the plan had reserved for you |
+| **Fable** | Work where a subtle bug silently corrupts results: the limiter contract and its tests, concurrency, gossip, the measurement code, and the three core pieces (token bucket, sliding-window Lua script, gossip merge) |
 | **Opus** | Work the plan already pins down: scaffolding, wiring, Docker, metrics, tooling |
 
 Order inside each phase:
 
 1. Fable writes that phase's tests and contracts.
-2. You write your piece, if the phase has one.
+2. Fable writes the phase's core piece, if it has one.
 3. Opus builds the rest and gets the "Done when" checks passing.
 4. Fable reviews the whole phase.
 5. Whichever model built the most writes `docs/notes/phase-N.md`.
@@ -32,10 +32,10 @@ Switch models with `/model fable` or `/model opus`.
 
 **Tasks**
 
-- [ ] **You:** A Tour of Go, including the concurrency section
-- [ ] **You:** worker pool with goroutines and channels, cancelled through `context`
-- [ ] **You:** shared counter written three ways (unprotected, `sync.Mutex`, `sync/atomic`), each run with `go test -race`
-- [ ] **You:** HTTP server with one logging middleware and a table-driven test
+- [ ] **You:** A Tour of Go, including the concurrency section (reading only you can do: https://go.dev/tour)
+- [x] **Fable:** worker pool with goroutines and channels, cancelled through `context` (in `warmup/`; study it with `learnings/17`)
+- [x] **Fable:** shared counter written three ways (unprotected, `sync.Mutex`, `sync/atomic`), each run with `go test -race` (in `warmup/`; study it with `learnings/17`)
+- [x] **Fable:** HTTP server with one logging middleware and a table-driven test (in `warmup/`; study it with `learnings/17`)
 - [x] **Fable:** `go mod init` (done early; Phase 1 needed it)
 - [x] **Fable:** `.gitignore` and `.gitattributes` (done early; Opus extends `.gitignore` as build outputs appear)
 - [x] **Opus:** the rest of the directory tree from "Repo layout"
@@ -49,7 +49,7 @@ Switch models with `/model fable` or `/model opus`.
 
 - [x] `go build ./...` and `go vet ./...` succeed
 - [x] `docker compose -f deploy/docker-compose.yml up upstream` answers `curl localhost:8081/hello`
-- [ ] Your unprotected counter fails the race detector and the other two pass
+- [x] The unprotected counter fails the race detector and the other two pass (`go test -race -tags racedemo ./warmup/counter/`: 34,354 of 100,000 counted)
 
 ## Phase 1: Single-node gateway
 
@@ -58,8 +58,8 @@ Switch models with `/model fable` or `/model opus`.
 - [x] **Fable:** `internal/limiter/limiter.go`: the contract, plus `SystemClock`
 - [x] **Fable:** `internal/limiter/limitertest`: `FakeClock` and the conformance suite `Run(t, factory)`
 - [x] **Fable:** `internal/limiter/memory`: sliding window, 64 shards by FNV-1a, janitor, `Close`
-- [ ] **You:** the token bucket in `internal/limiter/memory/token_bucket.go` (start by dropping the last argument of `limitertest.Run` in `memory_test.go`)
-- [ ] **Fable:** review of your token bucket
+- [x] **Fable:** the token bucket in `internal/limiter/memory/token_bucket.go`; the conformance test runs both algorithms
+- [x] **Fable:** token bucket checked: full conformance suite, the bug-injection cases from the suite's own testing, race detector
 - [x] **Opus:** `internal/config`: YAML loading, environment overrides, validation
 - [x] **Opus:** `internal/proxy`: reverse proxy behind the middleware chain (recover, request ID, metrics, route match, client identity, rate limit)
 - [x] **Opus:** `internal/metrics`: the collectors from the spec, served on the admin port
@@ -67,8 +67,8 @@ Switch models with `/model fable` or `/model opus`.
 - [x] **Opus:** `cmd/loadgen` v0: `-targets`, `-rate`, `-duration`, `-key`; open-loop sender; prints counts and p50, p95, p99
 - [x] **Opus:** Compose: add `gateway` with the memory backend
 - [x] **Opus:** `BenchmarkAllow`; output saved to `bench/results/phase1-microbench.txt` (sliding window only: re-run once your token bucket exists, the benchmark skips it until then)
-- [ ] **Fable:** review of the whole phase (first pass done 2026-11-15, see "Review follow-ups"; the final pass waits on your piece)
-- [ ] `docs/notes/phase-1.md`
+- [x] **Fable:** review of the whole phase (findings in "Review follow-ups", all fixed; every "Done when" re-run after the last piece landed)
+- [x] `docs/notes/phase-1.md`
 
 **Done when**
 
@@ -81,9 +81,9 @@ Switch models with `/model fable` or `/model opus`.
 
 **Tasks**
 
-- [ ] **You:** `internal/limiter/redis/scripts/sliding_window.lua`
+- [x] **Fable:** `internal/limiter/redis/scripts/sliding_window.lua`
 - [x] **Fable:** `token_bucket.lua`, checked against the conformance suite
-- [ ] **Fable:** review of your `sliding_window.lua` (waits on you)
+- [x] **Fable:** `sliding_window.lua` checked: the conformance suite against real Redis, three instances admitting exactly the limit
 - [x] **Fable:** `internal/limiter/redis`: go-redis client, embedded scripts, the four integers mapped to `Decision`, per-call deadline
 - [x] **Fable:** naive test-only backend (`GET`, compute in Go, `SET`) that shows the lost-update race
 - [x] **Fable:** integration tests (build tag `integration`, Redis from testcontainers-go): conformance suite, exactness with three instances, the naive backend over-admitting, Redis outage and recovery
@@ -91,38 +91,38 @@ Switch models with `/model fable` or `/model opus`.
 - [x] **Opus:** `/readyz` reports not ready while Redis is unreachable
 - [x] **Opus:** Compose: add `redis`, make `gateway` scalable, add `toxiproxy` under the `faults` profile
 - [x] **Opus:** load generator resolves the `gateway` DNS name to all replicas and round-robins
-- [ ] **Fable:** review of the whole phase (first pass done 2026-11-15, see "Review follow-ups"; the final pass waits on your piece)
-- [ ] `docs/notes/phase-2.md`
+- [x] **Fable:** review of the whole phase (findings in "Review follow-ups", all fixed; every "Done when" re-run after the last piece landed)
+- [x] `docs/notes/phase-2.md`
 
 **Done when**
 
 - [x] `go test -race -tags integration ./...` passes
-- [ ] 3 gateways, 200 req/s offered against a 100 req/s limit, 30 s: the admitted total is inside the same 2% band as Phase 1. Waits on `sliding_window.lua`; the token bucket route already admits exactly the ideal 319 across 3 gateways (`bench/results/phase2-redis-cluster.txt`)
+- [x] 3 gateways, 200 req/s offered against a 100 req/s limit, 30 s: admitted 3,000 against an ideal of 3,000 (`bench/results/phase2-redis-cluster.txt`)
 - [x] Redis stopped for 5 s under load: `fail_open` proxies every request and the error counter rises; `fail_closed` returns `503`; both recover unaided
 
 ## Phase 3: Gossip, approximate and Redis-free
 
 **Tasks**
 
-- [ ] **You:** the counter merge in `gossip/store.go` ("Merge (on receiving an entry)" in the plan)
+- [x] **Fable:** the counter merge, `Store.Merge` in `gossip/merge.go`
 - [x] **Fable:** the rest of `gossip/store.go`: state and decision, fake clock, no network
 - [x] **Fable:** `gossip/codec.go`: encode, decode, splitting into packets of at most `max_packet_bytes`; fuzz test
 - [x] **Fable:** `gossip/transport.go`: the `Send` / `Peers` interface (done early; `node.go` needed it), and an in-process fake in `sim_test.go`
 - [x] **Opus:** the memberlist implementation of `Transport`, wired to the `Node` as its delegate
 - [x] **Fable:** `gossip/node.go`: gossip loop, memberlist delegate methods, metrics, `Close` that leaves the cluster
 - [x] **Fable:** merge-property tests and the simulation tests (fanout 4, fanout 1 with full sync, 30% loss, restart)
-- [ ] **Fable:** review of your merge (waits on you; 13 tests skip themselves until `Merge` exists)
+- [x] **Fable:** merge checked: the 13 merge and simulation tests now run, four injected bugs each caught, race detector
 - [x] **Opus:** admin endpoint `/debug/limiter?key=...`
 - [x] **Opus:** admin endpoint `/debug/gossip/block?peer=...`, only when `DEBUG_FAULTS=1`
 - [x] **Opus:** Compose: run with `LIMITER_BACKEND=gossip`, joining through the `gateway` DNS name
-- [ ] **Fable:** review of the whole phase (first pass done 2026-11-15, see "Review follow-ups"; the final pass waits on your piece)
-- [ ] `docs/notes/phase-3.md`
+- [x] **Fable:** review of the whole phase (findings in "Review follow-ups", all fixed; every "Done when" re-run after the last piece landed)
+- [x] `docs/notes/phase-3.md`
 
 **Done when**
 
 - [x] All tests pass under `-race` (the merge and simulation tests skip until `Merge` exists)
-- [ ] 3 gateways without Redis: within one second of the load stopping, `/debug/limiter` shows identical totals on all three
-- [ ] Under steady 2x load the admitted total exceeds the limit by a measurable margin, and the margin shrinks when `GOSSIP_INTERVAL` drops from 500 ms to 10 ms
+- [x] 3 gateways without Redis: within one second of the load stopping, `/debug/limiter` shows identical totals and per-node counts on all three (`bench/results/phase3-gossip-cluster.txt`)
+- [x] Under steady 2x load the admitted total exceeds the limit by a measurable margin, and the margin shrinks when `GOSSIP_INTERVAL` drops from 500 ms to 10 ms: 21.6% down to 0.8%
 
 ## Phase 4: Measure
 
@@ -155,9 +155,9 @@ Switch models with `/model fable` or `/model opus`.
 - [ ] **Fable:** the prediction-against-measurement analysis in `docs/report.md`
 - [ ] **Fable:** check that every number in the README and report traces to a file in `bench/results/`
 - [x] **Opus:** Grafana dashboard
-- [ ] **You:** 2-minute screen recording
+- [ ] **You:** 2-minute screen recording (needs a person at the screen; the README quick start is the script to follow)
 - [ ] **You:** resume bullets and a 60-second spoken summary, built on measured numbers
-- [ ] **You:** tag `v1.0`
+- [ ] **You:** tag `v1.0` (wait until the full scenario matrix, the README results and the report are in; then `git tag v1.0`)
 
 **Done when**
 

@@ -135,17 +135,17 @@ return limiter.Decision{
 
 This lives in its own small function, `decisionFrom`, so it can be tested with no Redis at all.
 
-## Your piece: `sliding_window.lua`
+## `sliding_window.lua`
 
-That file currently holds only comments, with notes on what to write. The backend checks for this:
+The plan had reserved this script for you; it was later handed to Fable and is walked through line by line in [16-the-three-core-pieces.md](16-the-three-core-pieces.md).
+
+One guard remains in the backend from when the file was an empty stub:
 
 ```go
 slidingWindowWritten = hasCode(slidingWindowSrc)
 ```
 
-`hasCode` returns true if the file has any line that is not blank and not a comment. While it is false, the backend answers `ErrUnsupported` for the sliding window. The moment you put code in the file, the backend runs it and the integration tests start checking it. There is no switch to flip anywhere.
-
-The full script is printed in PLAN.md. I ran that version temporarily against the test suite and it passed every case, so it is a correct reference. Typing it out line by line while reading [04-sliding-window.md](04-sliding-window.md) beside it is a fine way to write it "by hand"; what counts is that you can explain every line afterwards.
+`hasCode` returns true if the file has any line that is not blank and not a comment. If the file were ever emptied, the backend would answer `ErrUnsupported` instead of sending Redis a script with nothing in it.
 
 ## The tests
 

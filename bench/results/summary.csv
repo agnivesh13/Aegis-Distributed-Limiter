@@ -2,3 +2,6 @@ scenario,backend,rep,gateways,keys,measured_s,requests,admitted,rejected,errors,
 S0,memory,1,1,10,30.0,60000,29635,30365,0,3,29645,0.000,0.034,0.034,1.050,0.726,1.487,1.644,label=n1 rate=2000 dist=uniform interval=100ms fanout=2 decision_p50_us=5.0 decision_p99_us=9.9 limiter_errors=0
 S0,memory,2,1,10,30.0,60000,29632,30368,0,11,29637,0.000,0.017,0.034,1.050,0.724,1.489,1.653,label=n1 rate=2000 dist=uniform interval=100ms fanout=2 decision_p50_us=5.0 decision_p99_us=9.9 limiter_errors=0
 S0,memory,3,1,10,30.0,60000,29634,30366,0,1,29631,0.010,0.000,0.067,1.050,0.725,1.486,1.649,label=n1 rate=2000 dist=uniform interval=100ms fanout=2 decision_p50_us=5.0 decision_p99_us=9.9 limiter_errors=0
+S1,redis,1,3,10,30.0,60000,29636,30364,0,3,29643,0.000,0.024,0.034,1.060,0.731,1.649,1.884,label=default rate=2000 dist=uniform interval=100ms fanout=2 decision_p50_us=142.4 decision_p99_us=383.7 limiter_errors=0
+S1,redis,2,3,10,30.0,60000,29624,30376,0,0,29633,0.000,0.030,0.034,1.040,0.755,1.668,1.922,label=default rate=2000 dist=uniform interval=100ms fanout=2 decision_p50_us=148.5 decision_p99_us=394.7 limiter_errors=0
+S1,redis,3,3,10,30.0,60000,29642,30358,0,0,29646,0.000,0.013,0.034,1.050,0.770,1.664,1.921,label=default rate=2000 dist=uniform interval=100ms fanout=2 decision_p50_us=151.5 decision_p99_us=432.3 limiter_errors=0

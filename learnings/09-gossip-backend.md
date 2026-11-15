@@ -51,7 +51,7 @@ Taking the maximum has three properties, and the tests check each:
 | Associative | Grouping does not matter | News arrives by different routes |
 | Idempotent | Applying it twice changes nothing | Packets get duplicated |
 
-Writing this merge is your piece ([merge.go](../internal/limiter/gossip/merge.go)). The stub there lists what to build and three questions to think through first.
+The merge is in [merge.go](../internal/limiter/gossip/merge.go). The plan had reserved it for you; it was later handed to Fable, and [16-the-three-core-pieces.md](16-the-three-core-pieces.md) goes through it line by line.
 
 ## The store
 
@@ -249,22 +249,9 @@ The gossip loops are *not* started. The test calls `round()` and `fullSync()` it
 
 The burst test is not a bug report. It writes down a limit of the design, stated in the plan, as a test, so the behaviour is known and deliberate. Being able to say "here is the worst case, here is the test that shows it" is a strong interview answer.
 
-## Tests that wait for your code
+## Tests that waited for the merge
 
-Thirteen tests need `Merge` to exist. Each starts with:
-
-```go
-func requireMerge(t *testing.T) {
-	probe := NewStore("probe", limitertest.NewFakeClock(start), 1)
-	if !probe.Merge(Entry{...Count: 1}) {
-		t.Skip("Store.Merge is not written yet: see merge.go")
-	}
-}
-```
-
-It tries one merge on an empty store. If nothing happens, the test **skips** itself, which is reported differently from pass or fail. When you write `Merge`, the probe succeeds and all thirteen start running, with nothing to switch on.
-
-As with the token bucket, I checked the tests against a throwaway merge (all passed, also under the race detector) and then put the stub back.
+Thirteen tests need `Merge`. While it was an empty stub, each began by trying one merge on an empty store and **skipped** itself if nothing happened (`requireMerge`). A skip is reported differently from a pass or a fail, so the test run stayed honest: it said "13 skipped", not "all passed". When `Merge` was written, the probe succeeded and all thirteen started running with nothing to switch on.
 
 ## Partition testing without changing the wire format
 
