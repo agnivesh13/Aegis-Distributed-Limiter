@@ -1,0 +1,37 @@
+# Default gateway configuration. Every container gets this file; the bench
+# runner changes behaviour through the environment variables noted below.
+
+gateway:
+  id: ""                      # default: hostname; env GATEWAY_ID
+  listen: ":8080"
+  admin_listen: ":9090"
+  upstream: "http://upstream:8081"  # env GATEWAY_UPSTREAM
+  trust_forwarded_for: false
+
+limiter:
+  backend: memory             # memory, redis or gossip; env LIMITER_BACKEND
+  on_error: fail_open         # fail_open or fail_closed; env LIMITER_ON_ERROR
+  timeout: 50ms               # deadline for one Allow call; env LIMITER_TIMEOUT
+
+redis:
+  addr: "redis:6379"          # env REDIS_ADDR
+  pool_size: 64
+
+gossip:
+  bind_port: 7946
+  join: ["gateway:7946"]      # DNS name that resolves to every gateway; env GOSSIP_JOIN
+  interval: 100ms             # env GOSSIP_INTERVAL
+  fanout: 2                   # env GOSSIP_FANOUT
+  retransmit: 3               # rounds a changed entry keeps being sent; env GOSSIP_RETRANSMIT
+  max_packet_bytes: 1200
+  full_sync_interval: 5s      # env GOSSIP_FULL_SYNC_INTERVAL
+
+routes:                       # longest path_prefix wins
+  - name: api
+    path_prefix: /api/
+    cost: 1
+    limit: { algorithm: sliding_window, rate: 100, period: 1s }
+  - name: search
+    path_prefix: /api/search
+    cost: 5
+    limit: { algorithm: token_bucket, rate: 50, period: 1s, burst: 100 }

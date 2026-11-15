@@ -1,0 +1,17 @@
+# Configuration for the experiments: one sliding-window route, the one
+# algorithm all three backends implement, so a comparison between them
+# changes nothing but the backend. Select it with
+#   GATEWAY_CONFIG=gateway-bench.yaml docker compose ... up
+# Everything not set here takes the defaults in internal/config, and the
+# environment variables listed in gateway.yaml still apply.
+
+limiter:
+  backend: memory             # env LIMITER_BACKEND
+  on_error: fail_open
+  timeout: 50ms
+
+routes:
+  - name: api
+    path_prefix: /api/
+    cost: 1
+    limit: { algorithm: sliding_window, rate: 100, period: 1s }
