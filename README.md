@@ -48,6 +48,8 @@ On PowerShell set the variable first: `$env:LIMITER_BACKEND = "redis"`.
 | 6379 | Redis |
 | 9099, 3000 | Prometheus, Grafana (`--profile observability`) |
 
+The observability stack is for local use only: Grafana allows anonymous viewing and its admin login is `admin`/`admin`. Do not publish these ports on a shared network.
+
 ## Layout
 
 | Path | What |

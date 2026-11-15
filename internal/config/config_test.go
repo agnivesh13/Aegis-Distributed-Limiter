@@ -36,7 +36,8 @@ func TestShippedConfigLoads(t *testing.T) {
 		t.Errorf("id = %q, %d routes; want gw-1 and 2", cfg.Gateway.ID, len(cfg.Routes))
 	}
 	search := cfg.Routes[1]
-	want := Route{Name: "search", PathPrefix: "/api/search", Cost: 5, Limit: Limit{Algorithm: "token_bucket", Rate: 50, Period: time.Second, Burst: 100}}
+	five := 5
+	want := Route{Name: "search", PathPrefix: "/api/search", Cost: &five, Limit: Limit{Algorithm: "token_bucket", Rate: 50, Period: time.Second, Burst: 100}}
 	if !reflect.DeepEqual(search, want) {
 		t.Errorf("search route = %+v, want %+v", search, want)
 	}
@@ -64,8 +65,8 @@ func TestDefaultsFillWhatTheFileLeavesOut(t *testing.T) {
 	if cfg.Gateway.Listen != ":8080" || cfg.Limiter.Backend != BackendMemory || cfg.Limiter.OnError != FailOpen {
 		t.Errorf("defaults not applied: %+v", cfg)
 	}
-	if cfg.Routes[0].Cost != 1 {
-		t.Errorf("cost left out = %d, want 1", cfg.Routes[0].Cost)
+	if cfg.Routes[0].Cost != nil || cfg.Routes[0].CostValue() != 1 {
+		t.Errorf("cost left out = %v, want nil meaning 1", cfg.Routes[0].Cost)
 	}
 }
 
@@ -136,6 +137,14 @@ routes:
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error does not mention %q:\n%v", want, err)
 		}
+	}
+}
+
+// Leaving cost out means 1; writing 0 is a mistake and must be reported.
+func TestExplicitZeroCostIsRejected(t *testing.T) {
+	yaml := strings.Replace(minimal, "path_prefix: /api/", "path_prefix: /api/\n    cost: 0", 1)
+	if _, err := parse(t, yaml, nil); err == nil || !strings.Contains(err.Error(), "cost 0") {
+		t.Errorf("err = %v, want an explicit cost of 0 rejected", err)
 	}
 }
 

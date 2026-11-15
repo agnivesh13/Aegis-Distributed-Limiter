@@ -16,6 +16,7 @@ type Snapshot struct {
 	GossipBytes     float64
 	GossipPackets   float64
 	LimiterErrors   float64
+	GossipMerged    float64 // gossip_entries_merged_total
 }
 
 func newSnapshot() Snapshot {
@@ -48,6 +49,8 @@ func (s *Snapshot) Add(r io.Reader) error {
 			s.GossipPackets += value
 		case "gateway_limiter_errors_total":
 			s.LimiterErrors += value
+		case "gossip_entries_merged_total":
+			s.GossipMerged += value
 		}
 	}
 	return sc.Err()
@@ -82,6 +85,36 @@ func labelValue(labels, name string) string {
 	return ""
 }
 
+// Scrape is one snapshot per gateway, keyed by its admin address.
+type Scrape map[string]Snapshot
+
+// Window returns what happened between two scrapes, summed over gateways.
+// It subtracts gateway by gateway and leaves out any gateway missing from
+// either scrape. Summing first and subtracting after would go negative as
+// soon as a gateway disappears between the two, which is what F1 does.
+func Window(before, after Scrape) Snapshot {
+	out := newSnapshot()
+	for addr, a := range after {
+		b, ok := before[addr]
+		if !ok {
+			continue
+		}
+		out.plus(a.Sub(b))
+	}
+	return out
+}
+
+// plus adds another snapshot's counts into this one.
+func (s *Snapshot) plus(o Snapshot) {
+	for le, n := range o.DecisionBuckets {
+		s.DecisionBuckets[le] += n
+	}
+	s.GossipBytes += o.GossipBytes
+	s.GossipPackets += o.GossipPackets
+	s.LimiterErrors += o.LimiterErrors
+	s.GossipMerged += o.GossipMerged
+}
+
 // Sub returns what happened between an earlier snapshot and this one.
 func (s Snapshot) Sub(earlier Snapshot) Snapshot {
 	out := newSnapshot()
@@ -91,6 +124,7 @@ func (s Snapshot) Sub(earlier Snapshot) Snapshot {
 	out.GossipBytes = s.GossipBytes - earlier.GossipBytes
 	out.GossipPackets = s.GossipPackets - earlier.GossipPackets
 	out.LimiterErrors = s.LimiterErrors - earlier.LimiterErrors
+	out.GossipMerged = s.GossipMerged - earlier.GossipMerged
 	return out
 }
 

@@ -23,7 +23,7 @@ func TestEveryMetricFromThePlanIsExposed(t *testing.T) {
 	m.Upstream.WithLabelValues("api").Observe(0.002)
 	m.LimiterErrors.WithLabelValues("redis").Inc()
 	m.TrackKeys("memory", func() int { return 42 })
-	m.TrackGossip(func() GossipStats { return GossipStats{PacketsSent: 7, BytesSent: 900, Members: 3} })
+	m.TrackGossip(func() GossipStats { return GossipStats{PacketsSent: 7, BytesSent: 900, Members: 3, EntriesMerged: 11} })
 	m.GossipLatency.Observe(0.004)
 
 	out := scrape(t, m)
@@ -37,6 +37,7 @@ func TestEveryMetricFromThePlanIsExposed(t *testing.T) {
 		`gossip_packets_sent_total 7`,
 		`gossip_bytes_sent_total 900`,
 		`gossip_members 3`,
+		`gossip_entries_merged_total 11`,
 		`gossip_delivery_seconds_count 1`,
 		`go_goroutines`,
 	} {

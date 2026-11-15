@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -290,7 +291,9 @@ func TestClientID(t *testing.T) {
 		{"remote address", nil, "1.1.1.1:1234", false, "1.1.1.1"},
 		{"ipv6 remote address", nil, "[2001:db8::1]:1234", false, "2001:db8::1"},
 		{"forwarded-for ignored unless trusted", map[string]string{"X-Forwarded-For": "9.9.9.9"}, "1.1.1.1:1", false, "1.1.1.1"},
-		{"forwarded-for first hop when trusted", map[string]string{"X-Forwarded-For": "9.9.9.9, 8.8.8.8"}, "1.1.1.1:1", true, "9.9.9.9"},
+		{"forwarded-for: the entry the trusted proxy appended", map[string]string{"X-Forwarded-For": "9.9.9.9, 8.8.8.8"}, "1.1.1.1:1", true, "8.8.8.8"},
+		{"forwarded-for: a single entry", map[string]string{"X-Forwarded-For": "8.8.8.8"}, "1.1.1.1:1", true, "8.8.8.8"},
+		{"forwarded-for: empty last entry falls back", map[string]string{"X-Forwarded-For": "9.9.9.9, "}, "1.1.1.1:1", true, "1.1.1.1"},
 		{"remote without port", nil, "1.1.1.1", false, "1.1.1.1"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -303,6 +306,68 @@ func TestClientID(t *testing.T) {
 				t.Errorf("ClientID = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// A client that rotates a made-up first entry must still be limited by
+// the address the load balancer saw.
+func TestSpoofedForwardedForDoesNotEscapeTheLimit(t *testing.T) {
+	lim := &stubLimiter{}
+	g := newGateway(t, lim, func(o *Options) { o.TrustForwardedFor = true })
+	for i := range 3 {
+		g.do("GET", "/api/x", map[string]string{"X-Forwarded-For": fmt.Sprintf("6.6.6.%d, 203.0.113.9", i)})
+	}
+	for _, k := range lim.keys {
+		if k != "api:203.0.113.9" {
+			t.Errorf("limiter key %q, want every request charged to api:203.0.113.9", k)
+		}
+	}
+}
+
+func TestOverlongAPIKeyIs400(t *testing.T) {
+	lim := &stubLimiter{}
+	g := newGateway(t, lim, nil)
+	if rec := g.do("GET", "/api/x", map[string]string{HeaderAPIKey: strings.Repeat("k", MaxAPIKeyLen)}); rec.Code != 200 {
+		t.Errorf("a %d-byte key: %d, want 200", MaxAPIKeyLen, rec.Code)
+	}
+	rec := g.do("GET", "/api/x", map[string]string{HeaderAPIKey: strings.Repeat("k", MaxAPIKeyLen+1)})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("a %d-byte key: %d, want 400", MaxAPIKeyLen+1, rec.Code)
+	}
+	if len(lim.keys) != 1 {
+		t.Errorf("limiter asked %d times, want once (only for the valid key)", len(lim.keys))
+	}
+}
+
+// blockingLimiter waits until its context ends, like a slow Redis.
+type blockingLimiter struct{ called chan struct{} }
+
+func (b blockingLimiter) Allow(ctx context.Context, _ string, _ limiter.Limit, _ int) (limiter.Decision, error) {
+	close(b.called)
+	<-ctx.Done()
+	return limiter.Decision{}, ctx.Err()
+}
+func (b blockingLimiter) Close() error { return nil }
+
+// A client hanging up mid-decision is not a limiter failure.
+func TestCancelledClientIsNotALimiterError(t *testing.T) {
+	lim := blockingLimiter{called: make(chan struct{})}
+	g := newGateway(t, lim, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest("GET", "/api/x", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() { g.h.ServeHTTP(rec, req); close(done) }()
+	<-lim.called
+	cancel()
+	<-done
+
+	if text := g.metricsText(t); strings.Contains(text, "gateway_limiter_errors_total{") {
+		t.Errorf("a cancelled request was counted as a limiter error:\n%s", text)
+	}
+	if *g.hits != 0 {
+		t.Error("a cancelled request was proxied")
 	}
 }
 

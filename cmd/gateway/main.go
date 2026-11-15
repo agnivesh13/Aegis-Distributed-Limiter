@@ -79,7 +79,7 @@ func run(configPath string, log *slog.Logger) error {
 
 	routes := make([]proxy.Route, len(cfg.Routes))
 	for i, r := range cfg.Routes {
-		routes[i] = proxy.Route{Name: r.Name, PathPrefix: r.PathPrefix, Cost: r.Cost, Limit: r.Limit.LimiterLimit()}
+		routes[i] = proxy.Route{Name: r.Name, PathPrefix: r.PathPrefix, Cost: r.CostValue(), Limit: r.Limit.LimiterLimit()}
 	}
 	proxySrv := &http.Server{
 		Addr: cfg.Gateway.Listen,
@@ -201,7 +201,7 @@ func newGossip(ctx context.Context, cfg config.Config, m *metrics.Metrics, log *
 	m.TrackKeys(config.BackendGossip, node.Store().Len)
 	m.TrackGossip(func() metrics.GossipStats {
 		s := node.Stats()
-		return metrics.GossipStats{PacketsSent: s.PacketsSent, BytesSent: s.BytesSent, Members: node.Members()}
+		return metrics.GossipStats{PacketsSent: s.PacketsSent, BytesSent: s.BytesSent, Members: node.Members(), EntriesMerged: s.EntriesMerged}
 	})
 
 	b := backend{

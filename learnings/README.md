@@ -24,6 +24,7 @@ Read them in order the first time. Each file assumes the ones before it.
 | [12-running-the-cluster.md](12-running-the-cluster.md) | Docker images and Compose, scaling behind one name, the load generator, memberlist, and what the real checks showed |
 | [13-bench-runner.md](13-bench-runner.md) | Running experiments from one command, the scenario matrix, reading histograms, the noise floor, the charts |
 | [14-code-review.md](14-code-review.md) | How a code review is done, and what it found: silent wrong answers, a spoofable header, unbounded input, misleading metrics |
+| [15-review-fixes.md](15-review-fixes.md) | How each finding was fixed and proved, and the extra bug the fixes uncovered |
 
 ## How to study with these
 

@@ -2,6 +2,8 @@
 
 Reviewed 2026-11-15 by Fable. Covers the Opus work in commits `32fb056`, `a2bf079` and `3cca03a`: `internal/config`, `internal/proxy`, `internal/metrics`, `internal/admin`, `cmd/gateway`, `cmd/upstream`, `cmd/loadgen`, `cmd/bench`, `deploy/` and `bench/`.
 
+**Status:** all thirteen findings fixed by Opus on 2026-11-15, with a test for each; see [learnings/15-review-fixes.md](../../learnings/15-review-fixes.md).
+
 **Verdict:** the gateway is sound and its checks are real. The bench runner has five problems that would put wrong numbers into `summary.csv`; fix those (R1 to R5) before running the scenario matrix. The rest can follow.
 
 Each finding says where it is, what goes wrong, how to fix it and how to test the fix. They are also listed as tasks in [TASKS.md](../../TASKS.md).

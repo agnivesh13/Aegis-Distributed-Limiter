@@ -17,6 +17,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -31,6 +32,10 @@ import (
 	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/analyze"
 	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
 )
+
+// loadLead is how far ahead the load is told to start, leaving the load
+// generator's container time to come up.
+const loadLead = 5 * time.Second
 
 type options struct {
 	scenarios string
@@ -93,7 +98,7 @@ func run(ctx context.Context, o options) error {
 	fmt.Printf("%d runs, roughly %v\n", len(jobs), total.Round(time.Minute))
 	if o.dryRun {
 		for _, j := range jobs {
-			fmt.Printf("  %-40s gateways=%d  %s\n", j.Name(), j.Run.Gateways, strings.Join(j.LoadgenArgs("<csv>"), " "))
+			fmt.Printf("  %-40s gateways=%d  %s\n", j.Name(), j.Run.Gateways, strings.Join(j.LoadgenArgs("<csv>", time.Time{}), " "))
 		}
 		return nil
 	}
@@ -102,6 +107,15 @@ func run(ctx context.Context, o options) error {
 		return err
 	}
 	c := compose{file: o.compose, project: o.project}
+	// Leftovers of an interrupted bench run would hold the ports; remove
+	// them, then check nothing else does.
+	if _, err := c.run(ctx, nil, "--profile", "faults", "down", "--remove-orphans"); err != nil {
+		return err
+	}
+	if busy := busyPorts(hostPorts); len(busy) > 0 {
+		return fmt.Errorf("host ports %v are in use, probably by a dev cluster; stop it with "+
+			"`docker compose -f deploy/docker-compose.yml down` and run again", busy)
+	}
 	if !o.noBuild {
 		fmt.Println("building the image")
 		if _, err := c.run(ctx, nil, "build"); err != nil {
@@ -179,22 +193,26 @@ func runJob(ctx context.Context, c compose, o options, j Job) error {
 	}
 
 	csvName := j.Name() + ".csv"
-	start := time.Now()
+	// The load generator's container takes a moment to start, so the load
+	// is told to begin at a fixed instant a little ahead, and faults and
+	// the warm-up snapshot are timed from that same instant. Containers
+	// read the host's clock, so the instant means the same thing inside.
+	start := time.Now().Add(loadLead)
 	faults := scheduleFaults(ctx, c, env, admins, r.Fault, start)
 
 	// Take the "before" snapshot when the warm-up ends, so the decision
 	// latencies cover the same measured window as the analyzer.
-	before := make(chan Snapshot, 1)
+	before := make(chan Scrape, 1)
 	go func() {
 		select {
-		case <-time.After(*r.Warmup):
+		case <-time.After(time.Until(start.Add(*r.Warmup))):
 		case <-ctx.Done():
 		}
 		s, _ := scrape(ctx, admins)
 		before <- s
 	}()
 
-	out, err := c.run(ctx, env, append([]string{"run", "--rm", "--no-deps", "loadgen"}, j.LoadgenArgs("/results/raw/"+csvName)...)...)
+	out, err := c.run(ctx, env, append([]string{"run", "--rm", "--no-deps", "loadgen"}, j.LoadgenArgs("/results/raw/"+csvName, start)...)...)
 	fmt.Print(indent(out))
 	if err != nil {
 		return fmt.Errorf("load generator: %w", err)
@@ -206,7 +224,7 @@ func runJob(ctx context.Context, c compose, o options, j Job) error {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "  final scrape (a killed gateway is expected to fail):", err)
 	}
-	window := after.Sub(<-before)
+	window := Window(<-before, after)
 
 	// Analyse.
 	f, err := os.Open(filepath.Join(o.rawDir, csvName))
@@ -226,6 +244,10 @@ func runJob(ctx context.Context, c compose, o options, j Job) error {
 		return err
 	}
 
+	if err := validRun(j.Backend, r.Gateways, r.Fault, window); err != nil {
+		return err
+	}
+
 	measured := res.MeasuredFor.Seconds()
 	note := j.Note() + fmt.Sprintf(" decision_p50_us=%.1f decision_p99_us=%.1f limiter_errors=%.0f",
 		window.DecisionQuantile(0.50)*1e6, window.DecisionQuantile(0.99)*1e6, window.LimiterErrors)
@@ -242,6 +264,27 @@ func runJob(ctx context.Context, c compose, o options, j Job) error {
 		res.OverAdmissionPct, res.FalseRejectPct, window.DecisionQuantile(0.99)*1e6, late)
 	if n := float64(max(1, res.Requests)); float64(late)/n > 0.01 {
 		fmt.Println("  WARNING: more than 1% late sends; lower the rate for this scenario and say so in the report")
+	}
+	return nil
+}
+
+// validRun refuses a run that measured a broken setup instead of a design,
+// so it never reaches the summary looking like a result.
+//
+//   - The limiter failed when nothing was meant to make it fail. With
+//     fail_open such a run lets everything through. Only a Redis outage
+//     (F2) is meant to cause limiter errors.
+//   - Gossip gateways never learned anything from each other. Each then
+//     enforces the full limit alone, which is not the design under test
+//     (for example while Store.Merge is unwritten).
+func validRun(backend string, gateways int, f Fault, w Snapshot) error {
+	if w.LimiterErrors > 0 && f.StopRedisAt == 0 {
+		return fmt.Errorf("the limiter failed %.0f times in a run with no outage, so the result measures a broken "+
+			"setup; check the gateway logs (an unwritten script shows up there at start-up). No row was written", w.LimiterErrors)
+	}
+	if backend == "gossip" && gateways > 1 && w.GossipMerged == 0 {
+		return errors.New("the gossip gateways merged nothing from each other, so each limited alone; " +
+			"is Store.Merge written? No row was written")
 	}
 	return nil
 }
@@ -290,6 +333,22 @@ func (c compose) run(ctx context.Context, env map[string]string, args ...string)
 	return out.String(), nil
 }
 
+// hostPorts are the ports the gateway replicas publish on the host.
+var hostPorts = []int{8080, 8081, 8082, 8083, 8084, 9090, 9091, 9092, 9093, 9094}
+
+// busyPorts returns the ports something on this machine is listening on.
+func busyPorts(ports []int) []int {
+	var busy []int
+	for _, p := range ports {
+		conn, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(p), 300*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			busy = append(busy, p)
+		}
+	}
+	return busy
+}
+
 // adminAddrs returns the host address of each gateway replica's admin port.
 func (c compose) adminAddrs(ctx context.Context, n int) ([]string, error) {
 	var addrs []string
@@ -319,8 +378,10 @@ func httpGet(ctx context.Context, url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func scrape(ctx context.Context, admins []string) (Snapshot, error) {
-	s := newSnapshot()
+// scrape reads every gateway's metrics. A gateway that cannot be reached
+// is left out of the result, so Window ignores it.
+func scrape(ctx context.Context, admins []string) (Scrape, error) {
+	out := Scrape{}
 	var errs []error
 	for _, a := range admins {
 		body, err := httpGet(ctx, "http://"+a+"/metrics")
@@ -328,11 +389,14 @@ func scrape(ctx context.Context, admins []string) (Snapshot, error) {
 			errs = append(errs, err)
 			continue
 		}
+		s := newSnapshot()
 		if err := s.Add(bytes.NewReader(body)); err != nil {
 			errs = append(errs, err)
+			continue
 		}
+		out[a] = s
 	}
-	return s, errors.Join(errs...)
+	return out, errors.Join(errs...)
 }
 
 // waitForMembers waits until every gossip gateway sees the whole cluster,

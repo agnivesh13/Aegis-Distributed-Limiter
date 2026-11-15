@@ -163,6 +163,39 @@ func TestRunWritesACSVTheAnalyzerReads(t *testing.T) {
 	}
 }
 
+// -start-at fixes the first send to an exact instant, so a caller can
+// time faults and measurements from the same moment as the load.
+func TestStartAtFixesTheFirstSend(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+
+	at := time.Now().Add(300 * time.Millisecond).Truncate(time.Millisecond)
+	out := filepath.Join(t.TempDir(), "run.csv")
+	o, err := parseFlags([]string{"-targets", srv.URL, "-rate", "100", "-duration", "100ms",
+		"-start-at", fmt.Sprint(at.UnixNano()), "-out", out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := run(context.Background(), o, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	requests, err := analyze.ReadCSV(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !requests[0].Send.Equal(at) {
+		t.Errorf("first send scheduled at %v, want exactly %v", requests[0].Send, at)
+	}
+	if !requests[9].Send.Equal(at.Add(90 * time.Millisecond)) {
+		t.Errorf("tenth send scheduled at %v, want %v", requests[9].Send, at.Add(90*time.Millisecond))
+	}
+}
+
 func TestBurstShapeSendsOnlyTheBurst(t *testing.T) {
 	var n atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { n.Add(1) }))

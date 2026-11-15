@@ -150,9 +150,9 @@ func Analyze(requests []Request, cfg Config) (Result, error) {
 	res.FalseRejectPct = pctOfIdeal(res.Ideal-res.Admitted, res.Ideal)
 
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
-	res.P50 = percentile(latencies, 50)
-	res.P95 = percentile(latencies, 95)
-	res.P99 = percentile(latencies, 99)
+	res.P50 = Percentile(latencies, 50)
+	res.P95 = Percentile(latencies, 95)
+	res.P99 = Percentile(latencies, 99)
 	return res, nil
 }
 
@@ -180,9 +180,11 @@ func peakInSpan(times []time.Time, span time.Duration) int {
 	return peak
 }
 
-// percentile returns the p-th percentile of sorted by the nearest-rank
+// Percentile returns the p-th percentile of sorted by the nearest-rank
 // method: the smallest value with at least p% of the values at or below it.
-func percentile(sorted []time.Duration, p float64) time.Duration {
+// The load generator uses it too, so both tools print the same figure for
+// the same run.
+func Percentile(sorted []time.Duration, p float64) time.Duration {
 	if len(sorted) == 0 {
 		return 0
 	}

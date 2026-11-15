@@ -21,13 +21,20 @@ services:
   gateway:
     <<: *app
     command: ["/app/gateway", "-config", "/etc/gateway/gateway.yaml"]
+    # Every variable in config.EnvNames() is listed, so a scenario that
+    # sets one cannot be silently ignored. A test checks this list.
     environment:
+      GATEWAY_ID: ${GATEWAY_ID:-}
+      GATEWAY_UPSTREAM: ${GATEWAY_UPSTREAM:-}
       LIMITER_BACKEND: ${LIMITER_BACKEND:-memory}
       LIMITER_ON_ERROR: ${LIMITER_ON_ERROR:-fail_open}
       LIMITER_TIMEOUT: ${LIMITER_TIMEOUT:-50ms}
       REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
       GOSSIP_INTERVAL: ${GOSSIP_INTERVAL:-100ms}
       GOSSIP_FANOUT: ${GOSSIP_FANOUT:-2}
+      GOSSIP_JOIN: ${GOSSIP_JOIN:-}
+      GOSSIP_RETRANSMIT: ${GOSSIP_RETRANSMIT:-}
+      GOSSIP_FULL_SYNC_INTERVAL: ${GOSSIP_FULL_SYNC_INTERVAL:-}
       DEBUG_FAULTS: ${DEBUG_FAULTS:-0}
     volumes:
       - ./${GATEWAY_CONFIG:-gateway.yaml}:/etc/gateway/gateway.yaml:ro

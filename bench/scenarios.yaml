@@ -94,9 +94,13 @@ scenarios:
       - { label: zipf1000, keys: 1000, dist: zipf }
 
   # Read the result by eye: the step at which p99 doubles from the first.
+  # Only the latency columns matter here; the accuracy columns are not the
+  # result. Memory runs as the one-node baseline: three memory gateways
+  # share nothing and would each admit the full limit.
   - id: S9
     question: Throughput ceiling
     backends: [memory, redis, gossip]
+    backend_gateways: { memory: 1 }
     reps: 1
     runs:
       - { label: r2000, rate: 2000 }

@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"net"
@@ -215,27 +216,43 @@ func routeMatch(routes []Route, next http.Handler) http.Handler {
 	})
 }
 
+// MaxAPIKeyLen is the longest X-API-Key accepted. The key ends up in the
+// limiter's key, so in memory, in Redis key names and in gossip packets:
+// anything stored from outside needs a size limit.
+const MaxAPIKeyLen = 128
+
 // clientIdentity works out who is asking: the API key if there is one,
 // else the client's IP address.
 func clientIdentity(trustForwardedFor bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(r.Header.Get(HeaderAPIKey)) > MaxAPIKeyLen {
+			writeJSON(w, http.StatusBadRequest, map[string]any{
+				"error": fmt.Sprintf("X-API-Key is longer than %d bytes", MaxAPIKeyLen),
+			})
+			return
+		}
 		infoFrom(r).client = ClientID(r, trustForwardedFor)
 		next.ServeHTTP(w, r)
 	})
 }
 
 // ClientID returns the X-API-Key header, or failing that the client's IP.
+//
 // X-Forwarded-For is believed only when trustForwardedFor is set, because
-// any client can write that header.
+// any client can write that header. Even then only its last entry is used:
+// each proxy appends the address it saw, so the last entry was written by
+// the trusted load balancer in front of the gateway, while everything
+// before it came from the client. This assumes exactly one trusted proxy;
+// behind several, count back that many entries instead.
 func ClientID(r *http.Request, trustForwardedFor bool) string {
 	if key := strings.TrimSpace(r.Header.Get(HeaderAPIKey)); key != "" {
 		return key
 	}
 	if trustForwardedFor {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			first, _, _ := strings.Cut(xff, ",")
-			if first = strings.TrimSpace(first); first != "" {
-				return first
+			last := xff[strings.LastIndexByte(xff, ',')+1:]
+			if last = strings.TrimSpace(last); last != "" {
+				return last
 			}
 		}
 	}
@@ -260,6 +277,12 @@ func rateLimit(o Options, next http.Handler) http.Handler {
 		cancel()
 		o.Metrics.ObserveDecision(o.Backend, string(route.Limit.Algorithm), time.Since(start))
 
+		if err != nil && r.Context().Err() != nil {
+			// The client went away while the limiter was being asked, so
+			// the call was cancelled. That says nothing about the
+			// backend's health: count nothing and answer no one.
+			return
+		}
 		if err != nil {
 			info.decision = failure
 			o.Metrics.LimiterErrors.WithLabelValues(o.Backend).Inc()

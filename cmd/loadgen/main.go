@@ -48,6 +48,7 @@ type options struct {
 	timeout  time.Duration
 	out      string
 	seed     uint64
+	startAt  int64 // unix nanoseconds; 0 means now
 }
 
 func main() {
@@ -86,6 +87,8 @@ func parseFlags(args []string) (options, error) {
 	fs.DurationVar(&o.timeout, "timeout", 5*time.Second, "per-request timeout")
 	fs.StringVar(&o.out, "out", "", "write every request to this CSV file")
 	fs.Uint64Var(&o.seed, "seed", 1, "seed for choosing keys, so runs are repeatable")
+	fs.Int64Var(&o.startAt, "start-at", 0, "send the first request at this time, in unix nanoseconds (default: now); "+
+		"lets a caller start faults and measurements at the same instant as the load")
 	if err := fs.Parse(args); err != nil {
 		return o, err
 	}
@@ -325,12 +328,13 @@ func run(ctx context.Context, o options, stdout io.Writer) error {
 		offset int64
 		start  = time.Now()
 	)
+	if o.startAt > 0 {
+		start = time.Unix(0, o.startAt)
+	}
 	for _, s := range segs {
 		if s.rate == 0 {
-			select {
-			case <-time.After(s.dur):
-			case <-ctx.Done():
-			}
+			// Silence: the next segment simply starts later. The
+			// scheduler sleeps until each send's time, so no sleep here.
 			start = start.Add(s.dur)
 			continue
 		}
@@ -375,13 +379,7 @@ func summarise(w io.Writer, results []result, stats loadgen.Stats) {
 		lat = append(lat, r.latency)
 	}
 	sort.Slice(lat, func(i, j int) bool { return lat[i] < lat[j] })
-	pct := func(p float64) time.Duration {
-		if len(lat) == 0 {
-			return 0
-		}
-		i := int(float64(len(lat))*p/100+0.999999) - 1
-		return lat[max(0, min(i, len(lat)-1))]
-	}
+	pct := func(p float64) time.Duration { return analyze.Percentile(lat, p) }
 
 	fmt.Fprintf(w, "sent       %d (late %d, %.2f%%)\n", stats.Sent, stats.Late, 100*float64(stats.Late)/float64(max(1, stats.Sent)))
 	fmt.Fprintf(w, "allowed    %d\nrejected   %d\nerrors     %d\n", allowed, rejected, errs)

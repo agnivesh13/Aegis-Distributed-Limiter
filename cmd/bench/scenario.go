@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/config"
 )
 
 // File is bench/scenarios.yaml.
@@ -24,6 +26,11 @@ type Scenario struct {
 	Backends []string `yaml:"backends"`
 	Reps     int      `yaml:"reps"` // overrides the default when set
 	Runs     []Run    `yaml:"runs"`
+
+	// BackendGateways overrides the gateway count for one backend, for
+	// every run of the scenario: the memory backend shares nothing between
+	// gateways, so in a comparison it runs as the one-node baseline.
+	BackendGateways map[string]int `yaml:"backend_gateways"`
 }
 
 // Run is one point of a scenario. Zero fields inherit from the defaults.
@@ -104,6 +111,10 @@ func Load(r io.Reader) (File, error) {
 		return File{}, fmt.Errorf("scenarios: %w", err)
 	}
 	seen := map[string]bool{}
+	known := map[string]bool{}
+	for _, name := range config.EnvNames() {
+		known[name] = true
+	}
 	var errs []error
 	for _, s := range f.Scenarios {
 		if s.ID == "" || seen[s.ID] {
@@ -129,9 +140,31 @@ func Load(r io.Reader) (File, error) {
 			if r.Fault.PartitionAt > 0 && r.Gateways < 2 {
 				errs = append(errs, fmt.Errorf("%s/%s: a partition needs at least 2 gateways", s.ID, r.Label))
 			}
+			// The runner sets these itself; anything else must be a
+			// variable the gateway actually reads, or the run would be
+			// labelled with a value it never used.
+			for k := range r.Env {
+				if !known[k] {
+					errs = append(errs, fmt.Errorf("%s/%s: env %s is not a variable the gateway reads (see config.EnvNames)", s.ID, r.Label, k))
+				}
+			}
+			for _, b := range s.Backends {
+				if b == "memory" && gatewaysFor(s, r, b) > 1 {
+					errs = append(errs, fmt.Errorf("%s/%s: the memory backend shares nothing between gateways; "+
+						"give it one gateway with backend_gateways: { memory: 1 }", s.ID, r.Label))
+				}
+			}
 		}
 	}
 	return f, errors.Join(errs...)
+}
+
+// gatewaysFor is how many gateways a backend gets in a run.
+func gatewaysFor(s Scenario, r Run, backend string) int {
+	if n := s.BackendGateways[backend]; n > 0 {
+		return n
+	}
+	return r.Gateways
 }
 
 // resolve fills a run's empty fields from the scenario and the defaults.
@@ -205,8 +238,10 @@ func (f File) Jobs(ids []string, reps int) ([]Job, error) {
 				n = reps
 			}
 			for _, backend := range s.Backends {
+				br := r
+				br.Gateways = gatewaysFor(s, r, backend)
 				for rep := 1; rep <= n; rep++ {
-					jobs = append(jobs, Job{Scenario: s.ID, Backend: backend, Rep: rep, Run: r})
+					jobs = append(jobs, Job{Scenario: s.ID, Backend: backend, Rep: rep, Run: br})
 				}
 			}
 		}
@@ -224,12 +259,16 @@ func (f File) Jobs(ids []string, reps int) ([]Job, error) {
 	return jobs, nil
 }
 
-// LoadgenArgs is the load generator's command line for a job.
-func (j Job) LoadgenArgs(csvPath string) []string {
+// LoadgenArgs is the load generator's command line for a job. A non-zero
+// start fixes the instant of the first send.
+func (j Job) LoadgenArgs(csvPath string, start time.Time) []string {
 	r := j.Run
 	args := []string{
 		"-rate", fmt.Sprint(r.Rate), "-keys", fmt.Sprint(r.Keys), "-dist", r.Dist,
 		"-shape", r.Shape, "-out", csvPath, "-seed", fmt.Sprint(j.Rep),
+	}
+	if !start.IsZero() {
+		args = append(args, "-start-at", fmt.Sprint(start.UnixNano()))
 	}
 	if r.Shape == "burst" {
 		args = append(args, "-idle", r.Idle.String(), "-burst-rate", fmt.Sprint(r.BurstRate), "-burst-for", r.BurstFor.String())

@@ -69,8 +69,18 @@ type Gossip struct {
 type Route struct {
 	Name       string `yaml:"name"`
 	PathPrefix string `yaml:"path_prefix"`
-	Cost       int    `yaml:"cost"` // 0 or left out means 1
-	Limit      Limit  `yaml:"limit"`
+	// Cost is a pointer so that "left out" (nil, meaning 1) and an
+	// explicit 0 (an error) can be told apart.
+	Cost  *int  `yaml:"cost"`
+	Limit Limit `yaml:"limit"`
+}
+
+// CostValue is what one request on the route costs: 1 when left out.
+func (r Route) CostValue() int {
+	if r.Cost == nil {
+		return 1
+	}
+	return *r.Cost
 }
 
 type Limit struct {
@@ -133,11 +143,6 @@ func Parse(r io.Reader, getenv func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("config: gateway.id is empty and the hostname is unknown: %w", err)
 		}
 		cfg.Gateway.ID = host
-	}
-	for i := range cfg.Routes {
-		if cfg.Routes[i].Cost == 0 {
-			cfg.Routes[i].Cost = 1
-		}
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
@@ -344,8 +349,8 @@ func validateLimit(where string, r Route, backend string) []error {
 	if l.Burst < 0 {
 		bad("limit.burst must not be negative, got %d", l.Burst)
 	}
-	if capacity := l.LimiterLimit().Capacity(); r.Cost < 1 || (l.Rate >= 1 && r.Cost > capacity) {
-		bad("cost %d must be between 1 and the limit's capacity %d", r.Cost, capacity)
+	if capacity, cost := l.LimiterLimit().Capacity(), r.CostValue(); cost < 1 || (l.Rate >= 1 && cost > capacity) {
+		bad("cost %d must be between 1 and the limit's capacity %d", cost, capacity)
 	}
 	return errs
 }

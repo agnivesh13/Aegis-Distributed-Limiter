@@ -2,7 +2,7 @@
 
 Every task from [PLAN.md](PLAN.md), who owns it, and whether it is done. PLAN.md says what to build; this file only tracks progress.
 
-**Current position:** Fable and Opus have both finished every task that does not wait on someone else, through Phase 4, and the cluster runs end to end in Docker. What is left waits on your three pieces, on real benchmark runs, or on reviews. Fable has reviewed the Opus work; the findings are under "Review follow-ups" below. Next up: your three pieces (token bucket, `sliding_window.lua`, `Merge`) and Opus's follow-ups R1 to R5, then the full scenario runs.
+**Current position:** Fable and Opus have both finished every task that does not wait on someone else, through Phase 4, and the cluster runs end to end in Docker. What is left waits on your three pieces, on real benchmark runs, or on reviews. Fable reviewed the Opus work and Opus has fixed every finding (R1 to R13). The bench runner now refuses runs that measure a stub instead of a design. Next up: your three pieces (token bucket, `sliding_window.lua`, `Merge`), then the full scenario runs.
 
 ## How to use this file
 
@@ -170,25 +170,26 @@ From Fable's review of the gateway, cluster and bench runner: [docs/reviews/2026
 
 **Before running the scenario matrix**
 
-- [ ] **Opus:** R1: a non-fault run with limiter errors must fail, not append a row to `summary.csv`
-- [ ] **Opus:** R2: snapshot and subtract per gateway, so a killed gateway (F1) cannot make the window negative
-- [ ] **Opus:** R3: pass every `config.EnvNames()` variable through Compose; reject unknown scenario `env` keys
-- [ ] **Opus:** R4: S9 on the memory backend runs with one gateway
-- [ ] **Opus:** R5: `-start-at` flag in `cmd/loadgen`, used by `cmd/bench` to time faults and the warm-up snapshot
+- [x] **Opus:** R1: a non-fault run with limiter errors must fail, not append a row to `summary.csv`
+- [x] **Opus:** R1 follow-on: a multi-gateway gossip run in which no node merged anything is refused too (`gossip_entries_merged_total`); found while fixing R1
+- [x] **Opus:** R2: snapshot and subtract per gateway, so a killed gateway (F1) cannot make the window negative
+- [x] **Opus:** R3: pass every `config.EnvNames()` variable through Compose; reject unknown scenario `env` keys
+- [x] **Opus:** R4: S9 on the memory backend runs with one gateway
+- [x] **Opus:** R5: `-start-at` flag in `cmd/loadgen`, used by `cmd/bench` to time faults and the warm-up snapshot
 
 **Soon**
 
-- [ ] **Opus:** R6: with `trust_forwarded_for`, use the last `X-Forwarded-For` entry, not the first
-- [ ] **Opus:** R7: reject API keys longer than 128 bytes with `400`
-- [ ] **Opus:** R8: correct the help text of `gateway_upstream_seconds`
-- [ ] **Opus:** R9: a cancelled client request is not a limiter error
-- [ ] **Opus:** R10: one percentile function, shared by the load generator and the analyzer
+- [x] **Opus:** R6: with `trust_forwarded_for`, use the last `X-Forwarded-For` entry, not the first
+- [x] **Opus:** R7: reject API keys longer than 128 bytes with `400`
+- [x] **Opus:** R8: correct the help text of `gateway_upstream_seconds`
+- [x] **Opus:** R9: a cancelled client request is not a limiter error
+- [x] **Opus:** R10: one percentile function, shared by the load generator and the analyzer
 
 **Small**
 
-- [ ] **Opus:** R11: reject an explicit `cost: 0`
-- [ ] **Opus:** R12: `cmd/bench` checks for a running dev cluster on the same host ports and says so
-- [ ] **Opus:** R13: README says the Grafana login is for local use only
+- [x] **Opus:** R11: reject an explicit `cost: 0`
+- [x] **Opus:** R12: `cmd/bench` checks for a running dev cluster on the same host ports and says so
+- [x] **Opus:** R13: README says the Grafana login is for local use only
 
 ## Open questions
 

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/config"
 )
 
 // The real scenario file must load, and every scenario in the plan's matrix
@@ -46,7 +48,7 @@ func TestScenarioFileLoads(t *testing.T) {
 	if *s7[0].Run.Warmup != 0 || s7[0].Run.Shape != "burst" {
 		t.Errorf("S7 should have no warm-up and the burst shape: %+v", s7[0].Run)
 	}
-	args := strings.Join(s7[0].LoadgenArgs("x.csv"), " ")
+	args := strings.Join(s7[0].LoadgenArgs("x.csv", time.Time{}), " ")
 	if !strings.Contains(args, "-shape burst -out x.csv") || !strings.Contains(args, "-burst-rate 10000") || strings.Contains(args, "-duration") {
 		t.Errorf("S7 load generator args: %s", args)
 	}
@@ -73,15 +75,115 @@ func TestScenarioFileLoads(t *testing.T) {
 	}
 }
 
+// R4: the memory backend never runs on more than one gateway, and S9 gives
+// it one while the other backends keep three.
+func TestMemoryBackendRunsAlone(t *testing.T) {
+	f, err := os.Open(filepath.Join("..", "..", "bench", "scenarios.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	file, err := Load(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, _ := file.Jobs([]string{"all"}, 1)
+	for _, j := range all {
+		if j.Backend == "memory" && j.Run.Gateways != 1 {
+			t.Errorf("%s runs the memory backend on %d gateways", j.Name(), j.Run.Gateways)
+		}
+	}
+	s9, _ := file.Jobs([]string{"S9"}, 1)
+	for _, j := range s9 {
+		if j.Backend != "memory" && j.Run.Gateways != 3 {
+			t.Errorf("%s has %d gateways, want the default 3", j.Name(), j.Run.Gateways)
+		}
+	}
+}
+
+// R3: every variable the gateway reads reaches it through Compose.
+func TestComposePassesEveryGatewayVariable(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", "docker-compose.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range config.EnvNames() {
+		if !strings.Contains(string(raw), "      "+name+": ${"+name) {
+			t.Errorf("the gateway service does not pass %s through", name)
+		}
+	}
+}
+
+func TestStartAtIsPassedToTheLoadGenerator(t *testing.T) {
+	j := Job{Scenario: "S1", Backend: "redis", Rep: 1, Run: Run{Label: "x", Rate: 10, Keys: 1, Dist: "uniform", Shape: "steady", Duration: time.Second}}
+	at := time.Unix(1_700_000_000, 5)
+	if args := strings.Join(j.LoadgenArgs("x.csv", at), " "); !strings.Contains(args, "-start-at 1700000000000000005") {
+		t.Errorf("args = %s", args)
+	}
+}
+
+// R1: limiter errors invalidate a run unless an outage was the point.
+func TestValidRun(t *testing.T) {
+	w := func(errors, merged float64) Snapshot {
+		s := newSnapshot()
+		s.LimiterErrors, s.GossipMerged = errors, merged
+		return s
+	}
+	if err := validRun("redis", 3, Fault{}, w(0, 0)); err != nil {
+		t.Errorf("clean run: %v", err)
+	}
+	if err := validRun("redis", 3, Fault{}, w(2000, 0)); err == nil {
+		t.Error("a run with limiter errors and no fault was accepted")
+	}
+	delay := time.Millisecond
+	if err := validRun("redis", 3, Fault{RedisDelay: &delay}, w(5, 0)); err == nil {
+		t.Error("added delay is not an outage; errors there mean something is broken")
+	}
+	if err := validRun("redis", 3, Fault{StopRedisAt: 10 * time.Second, StopFor: 5 * time.Second}, w(1664, 0)); err != nil {
+		t.Errorf("errors during a Redis outage are the point of the run: %v", err)
+	}
+	if err := validRun("gossip", 3, Fault{}, w(0, 0)); err == nil {
+		t.Error("gossip gateways that merged nothing were accepted")
+	}
+	if err := validRun("gossip", 3, Fault{}, w(0, 4200)); err != nil {
+		t.Errorf("gossip run that merged: %v", err)
+	}
+	if err := validRun("gossip", 1, Fault{}, w(0, 0)); err != nil {
+		t.Errorf("a lone gossip gateway has nobody to merge from: %v", err)
+	}
+}
+
+// R2: a gateway killed between the two scrapes is left out, so nothing
+// goes negative. Three gateways before, two after.
+func TestWindowSurvivesAKilledGateway(t *testing.T) {
+	snap := func(fast, total float64) Snapshot {
+		s := newSnapshot()
+		s.DecisionBuckets[0.001] = fast
+		s.DecisionBuckets[math.Inf(1)] = total
+		return s
+	}
+	before := Scrape{"a": snap(900, 1000), "b": snap(900, 1000), "c": snap(900, 1000)}
+	after := Scrape{"a": snap(1300, 1400), "b": snap(1300, 1400)} // c was killed
+	w := Window(before, after)
+	if w.DecisionBuckets[0.001] != 800 || w.DecisionBuckets[math.Inf(1)] != 800 {
+		t.Errorf("window = %v, want 800 and 800 from the two survivors", w.DecisionBuckets)
+	}
+	if q := w.DecisionQuantile(0.99); q <= 0 || q > 0.001 {
+		t.Errorf("p99 = %v, want inside the first bucket", q)
+	}
+}
+
 func TestBadScenarioFile(t *testing.T) {
 	const bad = `
 defaults: { gateways: 3, rate: 100, keys: 1, duration: 5s, warmup: 10s, reps: 1, limit: { rate: 10, period: 1s } }
 scenarios:
   - { id: X, backends: [etcd], runs: [ { label: a } ] }
   - { id: X, backends: [gossip], runs: [ { label: b, gateways: 1, fault: { partition_at: 1s } } ] }
+  - { id: Y, backends: [gossip], runs: [ { label: c, duration: 20s, env: { GOSSIP_INTERVL: 5ms } } ] }
+  - { id: Z, backends: [memory], runs: [ { label: d, duration: 20s } ] }
 `
 	_, err := Load(strings.NewReader(bad))
-	for _, want := range []string{"repeated", "unknown backend", "nothing after", "at least 2 gateways"} {
+	for _, want := range []string{"repeated", "unknown backend", "nothing after", "at least 2 gateways", "GOSSIP_INTERVL", "shares nothing"} {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("error does not mention %q: %v", want, err)
 		}

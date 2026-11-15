@@ -143,6 +143,10 @@ File: [docs/reviews/2026-11-15-gateway-cluster-bench.md](../docs/reviews/2026-11
 
 With the model switched back to Fable, the gateway, cluster and bench runner were reviewed. Thirteen findings, five of which must be fixed before the scenario matrix is run because they would put wrong numbers into the results. The worst was reproduced with a throwaway test. The S0 noise floor was checked and passes. Explained in [14-code-review.md](14-code-review.md).
 
+## Step 17: Opus fixes the review findings
+
+All thirteen findings were fixed, each with a test that fails without the fix. Fixing R1 uncovered a second case of the same bug (gossip runs with an unwritten `Merge`), now refused too. A real S1 run proved both refusals. Explained in [15-review-fixes.md](15-review-fixes.md).
+
 ## What could not be done yet
 
 Some Fable tasks wait on other work and were left:

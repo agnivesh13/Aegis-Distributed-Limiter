@@ -47,7 +47,7 @@ func New() *Metrics {
 		}, []string{"backend", "algorithm"}),
 		Upstream: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "gateway_upstream_seconds",
-			Help:    "Time from forwarding a request to the upstream until its response headers.",
+			Help:    "Time to proxy a request to the upstream and relay its whole response to the client.",
 			Buckets: prometheus.ExponentialBuckets(100e-6, 2, 16), // 100 µs to about 3.3 s
 		}, []string{"route"}),
 		LimiterErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -88,9 +88,10 @@ func (m *Metrics) TrackKeys(backend string, count func() int) {
 
 // GossipStats is what the gossip node reports on each scrape.
 type GossipStats struct {
-	PacketsSent uint64
-	BytesSent   uint64
-	Members     int
+	PacketsSent   uint64
+	BytesSent     uint64
+	Members       int
+	EntriesMerged uint64
 }
 
 // TrackGossip exposes the gossip counters and the member gauge. stats is
@@ -103,6 +104,10 @@ func (m *Metrics) TrackGossip(stats func() GossipStats) {
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Name: "gossip_bytes_sent_total", Help: "Bytes of gossip packets sent.",
 		}, func() float64 { return float64(stats().BytesSent) }),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Name: "gossip_entries_merged_total",
+			Help: "Counts received from peers that told this node something new. Zero across a cluster means nodes are not learning from each other.",
+		}, func() float64 { return float64(stats().EntriesMerged) }),
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Name: "gossip_members", Help: "Cluster members this node can see, itself included.",
 		}, func() float64 { return float64(stats().Members) }),

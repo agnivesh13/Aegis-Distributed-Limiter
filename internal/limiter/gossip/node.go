@@ -39,6 +39,7 @@ type Stats struct {
 	PacketsSent    uint64
 	BytesSent      uint64
 	PacketsDropped uint64 // received packets that could not be decoded
+	EntriesMerged  uint64 // received counts that told this node something new
 }
 
 // Node is the gossip limiter backend. It answers Allow from its Store and
@@ -62,6 +63,7 @@ type Node struct {
 	packetsSent    atomic.Uint64
 	bytesSent      atomic.Uint64
 	packetsDropped atomic.Uint64
+	entriesMerged  atomic.Uint64
 
 	stop chan struct{} // closed by Close to stop the loop
 	done chan struct{} // closed by the loop when it has stopped
@@ -144,6 +146,7 @@ func (n *Node) Stats() Stats {
 		PacketsSent:    n.packetsSent.Load(),
 		BytesSent:      n.bytesSent.Load(),
 		PacketsDropped: n.packetsDropped.Load(),
+		EntriesMerged:  n.entriesMerged.Load(),
 	}
 }
 
@@ -267,7 +270,9 @@ func (n *Node) receive(b []byte) {
 		if blocked[e.Node] {
 			continue
 		}
-		n.store.Merge(e)
+		if n.store.Merge(e) {
+			n.entriesMerged.Add(1)
+		}
 	}
 }
 

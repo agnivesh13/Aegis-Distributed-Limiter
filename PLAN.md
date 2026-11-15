@@ -256,9 +256,11 @@ The gateway validates the config on startup and exits with a clear message on an
 | `gossip_bytes_sent_total` | counter | none |
 | `gossip_delivery_seconds` | histogram | none |
 | `gossip_members` | gauge | none |
+| `gossip_entries_merged_total` | counter | none |
 
 - Decision histogram buckets: exponential, starting at 10 microseconds, factor 1.5, 24 buckets (up to about 110 ms).
 - `gossip_delivery_seconds` is the receiver's clock minus the packet's send timestamp. It is valid here because all containers share one host clock.
+- `gossip_entries_merged_total` counts received counts that told a node something new. If it stays at zero across a cluster, the nodes are not learning from each other, and `cmd/bench` refuses to record the run.
 
 ### Compose services
 

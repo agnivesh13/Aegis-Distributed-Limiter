@@ -203,14 +203,14 @@ func TestPercentile(t *testing.T) {
 		sorted = append(sorted, time.Duration(ms)*time.Millisecond)
 	}
 	for p, want := range map[float64]time.Duration{50: 50 * time.Millisecond, 95: 95 * time.Millisecond, 99: 99 * time.Millisecond, 100: 100 * time.Millisecond} {
-		if got := percentile(sorted, p); got != want {
+		if got := Percentile(sorted, p); got != want {
 			t.Errorf("p%v = %v, want %v", p, got, want)
 		}
 	}
-	if got := percentile([]time.Duration{7}, 99); got != 7 {
+	if got := Percentile([]time.Duration{7}, 99); got != 7 {
 		t.Errorf("p99 of one value = %v, want that value", got)
 	}
-	if got := percentile(nil, 50); got != 0 {
+	if got := Percentile(nil, 50); got != 0 {
 		t.Errorf("p50 of nothing = %v, want 0", got)
 	}
 }
