@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "not gofmt-ed:"; echo "$unformatted"; exit 1; fi
+
+      - name: go vet
+        run: go vet ./... && go vet -tags integration ./...
+
+      - name: unit tests (race detector)
+        run: go test -race ./...
+
+      # testcontainers starts Redis in Docker, which the runner provides.
+      - name: integration tests (race detector)
+        run: go test -race -tags integration ./...
+
+      - name: image builds
+        run: docker build -t aegis:ci .

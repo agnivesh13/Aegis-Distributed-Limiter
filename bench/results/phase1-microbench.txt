@@ -1,0 +1,37 @@
+Phase 1: memory backend microbenchmarks
+Date: 2026-11-15
+Machine: 12th Gen Intel Core i7-12700H, Linux container limited to 4 CPUs (golang:1.27)
+Command: go test -run '^$' -bench BenchmarkAllow -benchmem -count 3 -cpu 1,4 ./internal/limiter/memory/
+Token bucket: skipped, not implemented yet (hand-written piece). Re-run once it exists.
+
+Median of 3 (ns per Allow call, 0 allocations in every case), from the raw output below:
+                             1 CPU    4 CPUs
+  serial                     133.8    126.4
+  parallel, one hot key      100.8    125.2   one mutex: more cores do not help
+  parallel, 10,000 keys      117.9     50.6   64 shards: 2.3x the throughput
+
+Raw output:
+goos: linux
+goarch: amd64
+pkg: github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter/memory
+cpu: 12th Gen Intel(R) Core(TM) i7-12700H
+BenchmarkAllow/sliding_window/serial    	 9544459	       125.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial    	 8486782	       138.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial    	 9083566	       133.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial-4  	 8149892	       129.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial-4  	 9595545	       123.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/serial-4  	 9603068	       126.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key           	11408724	       105.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key           	12320478	       100.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key           	11252841	       100.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key-4         	 9408652	       124.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key-4         	 9271364	       129.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/1key-4         	 9551924	       125.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys      	 9780854	       117.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys      	10342423	       117.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys      	10264116	       118.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys-4    	21821455	        50.57 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys-4    	23863275	        52.63 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAllow/sliding_window/parallel/10000keys-4    	23461860	        49.77 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter/memory	22.565s

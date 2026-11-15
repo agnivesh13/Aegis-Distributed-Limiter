@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  # Every gateway replica: the service name resolves to all of them.
+  - job_name: gateway
+    dns_sd_configs:
+      - names: ["gateway"]
+        type: A
+        port: 9090

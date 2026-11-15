@@ -1,0 +1,90 @@
+{
+  "uid": "aegis-gateway",
+  "title": "Aegis gateway",
+  "description": "Rate-limiting gateway: decisions, latency, limiter errors and gossip traffic, summed over every replica.",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "tags": ["aegis"],
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requests per second by decision",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (decision) (rate(gateway_requests_total[30s]))", "legendFormat": "{{decision}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Limiter decision latency",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.5, sum by (le, backend) (rate(gateway_limiter_decision_seconds_bucket[30s])))", "legendFormat": "p50 {{backend}}" },
+        { "refId": "B", "expr": "histogram_quantile(0.99, sum by (le, backend) (rate(gateway_limiter_decision_seconds_bucket[30s])))", "legendFormat": "p99 {{backend}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests per second by gateway",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (instance) (rate(gateway_requests_total[30s]))", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Upstream latency p99 and limiter errors",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "limiter errors/s" }, "properties": [ { "id": "unit", "value": "short" }, { "id": "custom.axisPlacement", "value": "right" } ] }
+        ]
+      },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(gateway_upstream_seconds_bucket[30s])))", "legendFormat": "upstream p99" },
+        { "refId": "B", "expr": "sum(rate(gateway_limiter_errors_total[30s]))", "legendFormat": "limiter errors/s" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Tracked keys",
+      "gridPos": { "x": 0, "y": 16, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (backend) (limiter_tracked_keys)", "legendFormat": "{{backend}}" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Gossip members (lowest any gateway sees)",
+      "gridPos": { "x": 6, "y": 16, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "min(gossip_members)" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Gossip traffic per gateway",
+      "gridPos": { "x": 12, "y": 16, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "rate(gossip_bytes_sent_total[30s])", "legendFormat": "{{instance}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Gossip delivery age p99 (convergence)",
+      "gridPos": { "x": 18, "y": 16, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le) (rate(gossip_delivery_seconds_bucket[30s])))", "legendFormat": "p99" } ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+Phase 2: three gateways sharing Redis, Docker Compose on one laptop
+Date: 2026-11-15
+Setup: 3 gateway replicas (1 CPU each), Redis 7.4, LIMITER_BACKEND=redis.
+Load: cmd/loadgen, open loop, 200 req/s total, round-robin over the 3 replicas,
+      one API key. Raw CSVs in bench/results/raw/ (not committed).
+
+1. Sliding window route (/api/hello, 100 per 1 s), 30 s
+   Admitted 6000 of 6000; gateway_limiter_errors_total 2000 per gateway.
+   Not a measurement of exactness: sliding_window.lua is still the stub, so
+   the backend answered ErrUnsupported and fail_open let every request
+   through. Re-run once the script exists. (Since this run the gateway logs
+   an error at start-up for any route its backend cannot decide.)
+
+2. Token bucket route (/api/search, cost 5, 50 tokens/s, burst 100), 30 s
+   Admitted 319 of 6000, with each gateway receiving 2000.
+   Exact value: the full bucket pays for 20 requests, then 50 tokens/s at
+   cost 5 is 10 requests/s over the 29.995 s from first to last request:
+   20 + floor(29.995 x 10) = 319. Three gateways together admitted exactly
+   what one exact limiter would.
+
+3. Redis stopped for about 6 s under load, token bucket route, 20 s run
+                       fail_open           fail_closed
+   2xx                 1825                155
+   429                 2175                2181
+   503                 0                   1664
+   limiter errors      1670                1664
+   p95 latency         52.7 ms             52.3 ms   (the 50 ms limiter deadline)
+   After Redis returned, every gateway's /readyz said ready again and
+   decisions resumed with nothing restarted, under both policies.

@@ -1,0 +1,8 @@
+.git
+.agents
+.claude
+.vscode
+bench/results
+learnings
+*.md
+!README.md

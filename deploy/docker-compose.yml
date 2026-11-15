@@ -1,0 +1,119 @@
+# The whole cluster on one machine.
+#
+#   docker compose -f deploy/docker-compose.yml up -d --build --scale gateway=3
+#   docker compose -f deploy/docker-compose.yml run --rm loadgen -rate 200 -duration 30s -key key-1
+#
+# Pick the config with GATEWAY_CONFIG=gateway.yaml|gateway-bench.yaml and the
+# backend with LIMITER_BACKEND=memory|redis|gossip in the shell
+# before `up`. Optional parts are behind profiles:
+#   --profile faults         toxiproxy between gateways and Redis (set REDIS_ADDR=toxiproxy:26379)
+#   --profile observability  Prometheus on :9099 and Grafana on :3000
+
+name: aegis
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  image: aegis:dev
+
+services:
+  gateway:
+    <<: *app
+    command: ["/app/gateway", "-config", "/etc/gateway/gateway.yaml"]
+    environment:
+      LIMITER_BACKEND: ${LIMITER_BACKEND:-memory}
+      LIMITER_ON_ERROR: ${LIMITER_ON_ERROR:-fail_open}
+      LIMITER_TIMEOUT: ${LIMITER_TIMEOUT:-50ms}
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      GOSSIP_INTERVAL: ${GOSSIP_INTERVAL:-100ms}
+      GOSSIP_FANOUT: ${GOSSIP_FANOUT:-2}
+      DEBUG_FAULTS: ${DEBUG_FAULTS:-0}
+    volumes:
+      - ./${GATEWAY_CONFIG:-gateway.yaml}:/etc/gateway/gateway.yaml:ro
+    # Replicas cannot share a host port, so publish a range: one port per
+    # replica, up to five. Inside the network every replica is "gateway".
+    ports:
+      - "8080-8084:8080"
+      - "9090-9094:9090"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+    depends_on:
+      upstream:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/readyz"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  upstream:
+    <<: *app
+    command: ["/app/upstream", "-addr", ":8081", "-delay", "${UPSTREAM_DELAY:-0s}"]
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    profiles: ["faults"]
+    command: ["-host", "0.0.0.0", "-config", "/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "8474:8474"   # toxiproxy's own API, for adding delay
+    depends_on:
+      - redis
+
+  loadgen:
+    <<: *app
+    profiles: ["loadgen"]
+    entrypoint: ["/app/loadgen", "-targets", "http://gateway:8080"]
+    command: []
+    volumes:
+      - ../bench/results:/results
+    user: "0"   # to write into the mounted results folder on any host
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: ["observability"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9099:9090"
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    profiles: ["observability"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
