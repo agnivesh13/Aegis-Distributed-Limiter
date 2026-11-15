@@ -390,6 +390,52 @@ A test that had passed many times failed once.
 
 **Lesson.** When a summary looks wrong, look at the raw data before believing the summary or the system. The bug may be in the thing doing the summarising.
 
+## 29. Every five-gateway run failed to start
+
+**What it looked like**
+
+```text
+Error response from daemon: ... gateway-5 ... all ports are allocated
+```
+
+All twelve runs that needed five gateways failed, while three-gateway runs were fine.
+
+**Cause.** The Compose file gives the gateways host ports 8080 to 8084: five ports for up to five gateways. But the upstream service published host port 8081, which is inside that range. So only four ports were ever free, and the fifth gateway had none. Nothing had started five gateways before, so no test and no review had hit it.
+
+**Fix.** The upstream now publishes on 8089. A test reads the Compose file and fails if anything publishes a port inside the gateways' ranges. The twelve runs were redone.
+
+**Lesson.** Test the largest configuration you claim to support, not just the usual one. "Scales to five" had never been tried. (Problem 25 was the same mistake with Prometheus; fixing one case did not make me check for others.)
+
+## 30. A safety rule that threw away real results
+
+**What it looked like.** After the review, the bench runner refused any run in which the limiter reported an error. In the full run it refused thirteen runs, including ones with 1 error in 60,000 requests.
+
+**Cause.** The rule was written to catch a backend that cannot decide at all, which fails on *every* request. I wrote it as "any error at all". But Redis occasionally missing its 50 ms deadline under heavy load is exactly what the load scenarios exist to show.
+
+**Fix.** A run is refused only when at least 90% of its requests failed in the limiter. Anything less is kept, with the error count in the row.
+
+**Lesson.** A check should match the thing it is meant to catch. "Zero tolerance" is easy to write and often wrong: ask what the *broken* case looks like in numbers, and what a *legitimate* case looks like, and put the line between them.
+
+## 31. The laptop could not send the load the plan asked for
+
+**What it looked like.** At 10,000 requests per second, 1.8% of requests left the load generator late. In the burst scenario, 22% to 45% did.
+
+**Cause.** A request that leaves late is not the load that was asked for. A "burst" in which a third of the requests trickle out afterwards is not a burst. The load generator, three gateways and the upstream all share one laptop.
+
+**Fix.** The plan has a rule for this: if late sends pass 1%, lower the rate and say so. The top load step became 6 times the limit (was 10) and the burst 4 times (was 10). The rows already recorded at the larger sizes were moved to their own file, not deleted.
+
+**Lesson.** Check that your test equipment can do what you are asking of it. The late-send counter existed for exactly this, and it worked: without it those rows would have looked like results.
+
+## 32. A write-up that said more than the data
+
+**What it looked like.** Before committing, I checked each sentence of the results write-up against the table. Four were wrong: "the model is within a fifth" (true only from 50 ms upward; at 10 ms it is 64% off in relative terms), "132 fault-injected runs" (132 runs, a few with faults), a late-send range that missed the worst run, and an explanation I had asserted without evidence.
+
+**Cause.** Writing from memory of the numbers, and reaching for a tidy sentence.
+
+**Fix.** Corrected each against the table. The unsupported explanation was replaced with the plain numbers.
+
+**Lesson.** Check every number in a write-up against its source, as a separate step after writing. This is plan rule 7 ("numbers must come from those files") applied to prose. Rounding in your favour and smoothing over an awkward point are how true results turn into false claims.
+
 ## The pattern behind all of these
 
 Looking back over the list:

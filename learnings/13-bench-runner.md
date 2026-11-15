@@ -93,14 +93,17 @@ I tested the script on a made-up summary file kept outside the repo, to see both
 
 [aegis.json](../deploy/grafana/dashboards/aegis.json) is loaded automatically when Grafana starts with the `observability` profile. Its panels: requests per second by decision and by gateway, decision latency p50 and p99 per backend, upstream p99 and limiter errors, tracked keys, gossip members, gossip traffic and gossip delivery age. Every query was checked against a live cluster before it was committed.
 
-## What is blocked, and on what
+## After the three pieces were written
 
-| Scenarios | Wait on |
+When this note was first written, every Redis and gossip scenario was blocked on pieces not yet written, and only S0 could run. Once they existed, the whole matrix ran: 132 runs. What the numbers mean is in [18-reading-the-results.md](18-reading-the-results.md).
+
+The runner gained three flags on the way:
+
+| Flag | Use |
 | --- | --- |
-| All Redis runs (S1 to S3, S6 to S9, F1, F2) | Your `sliding_window.lua` |
-| All gossip runs (S1 to S5, S7 to S9, F1, F3) | Your `Merge` |
-
-Until then, those runs would measure the stubs, not the designs. S0 needs neither and is done.
+| `-missing` | Run only the points that have no row in the summary yet, to redo failed runs without repeating good ones |
+| `-only n5` | Run only the points whose label contains the text |
+| `-table` | Print the summary as a table of medians and ranges |
 
 ## Check yourself
 

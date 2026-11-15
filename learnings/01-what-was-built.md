@@ -147,16 +147,19 @@ With the model switched back to Fable, the gateway, cluster and bench runner wer
 
 All thirteen findings were fixed, each with a test that fails without the fix. Fixing R1 uncovered a second case of the same bug (gossip runs with an unwritten `Merge`), now refused too. A real S1 run proved both refusals. Explained in [15-review-fixes.md](15-review-fixes.md).
 
-## What could not be done yet
+## Step 18: The three core pieces, and the full measurement
 
-Some Fable tasks wait on other work and were left:
+You handed your own tasks to Fable. The token bucket, the sliding-window Lua script and the gossip merge were written and checked ([16-the-three-core-pieces.md](16-the-three-core-pieces.md)), and the warm-up exercises were added ([17-warmup-exercises.md](17-warmup-exercises.md)).
 
-| Task | Waits on |
+With nothing left blocked, the whole scenario matrix ran: 132 runs over about three hours. The headline: Redis is exact at 395 µs per decision; gossip takes 12 µs and lets 4.5% extra through. Three more problems surfaced during the run and were fixed. Explained in [18-reading-the-results.md](18-reading-the-results.md).
+
+## What is left
+
+| Task | Who |
 | --- | --- |
-| Review of your token bucket, Lua script and merge | You writing them |
-| Review of each whole phase | Opus building the rest of each phase |
-| Every scenario except S0 | Your `sliding_window.lua` (Redis runs) and `Merge` (gossip runs) |
-| The prediction-against-measurement analysis, the README results and the report | The Phase 4 results |
+| README results section and `docs/report.md` (Phase 5) | Opus, then Fable checks the numbers |
+| A Tour of Go, the screen recording, tagging `v1.0` | You |
+| Studying these notes until you can explain the project unaided | You |
 
 ## The commits
 

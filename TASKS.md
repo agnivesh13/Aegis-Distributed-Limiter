@@ -2,7 +2,7 @@
 
 Every task from [PLAN.md](PLAN.md), who owns it, and whether it is done. PLAN.md says what to build; this file only tracks progress.
 
-**Current position:** Fable and Opus have both finished every task that does not wait on someone else, through Phase 4, and the cluster runs end to end in Docker. What is left waits on your three pieces, on real benchmark runs, or on reviews. Fable reviewed the Opus work and Opus has fixed every finding (R1 to R13). The bench runner now refuses runs that measure a stub instead of a design. Next up: your three pieces (token bucket, `sliding_window.lua`, `Merge`), then the full scenario runs.
+**Current position:** Phases 0 to 4 are complete: every backend is built, the cluster runs, and the full scenario matrix (132 runs) is measured. Phase 5 remains: the README results, the report, and for you the screen recording, A Tour of Go and the `v1.0` tag.
 
 ## How to use this file
 
@@ -135,16 +135,16 @@ Switch models with `/model fable` or `/model opus`.
 - [x] **Opus:** `cmd/bench`: start the cluster for a scenario, wait for `/readyz`, run the load, inject faults, scrape `/metrics`, tear down
 - [x] **Opus:** `bench/scenarios.yaml`: the scenario matrix
 - [x] **Opus:** `bench/plot.py`: the two charts from `summary.csv`
-- [ ] **Opus:** run every scenario 3 times. S0 is done (3 reps, in `summary.csv`). The rest wait on `sliding_window.lua` (every Redis scenario) and `Merge` (every gossip scenario)
+- [x] **Fable:** run every scenario 3 times (S9 once per step, as the scenario file says): 132 runs in `bench/results/summary.csv`, medians and ranges in `bench/results/RESULTS.md`
 - [x] **Fable:** check the noise floor (S0): passes, at most 0.034% against the 1% rule (details in the review)
-- [ ] **Fable:** review of the whole phase (first pass done 2026-11-15, see "Review follow-ups"; the final pass waits on your piece)
-- [ ] `docs/notes/phase-4.md`
+- [x] **Fable:** review of the whole phase (findings in "Review follow-ups", all fixed; three more problems found and fixed during the full run, see `docs/notes/phase-4.md`)
+- [x] `docs/notes/phase-4.md`
 
 **Done when**
 
-- [ ] `go run ./cmd/bench -scenario S1` produces a summary row end to end with no manual steps
+- [x] `go run ./cmd/bench -scenario S1` produces a summary row end to end with no manual steps
 - [x] S0 shows over-admission under 1%
-- [ ] `bench/results/` holds `summary.csv` and both charts
+- [x] `bench/results/` holds `summary.csv` and both charts
 
 ## Phase 5: Write-up and polish
 
@@ -156,7 +156,7 @@ Switch models with `/model fable` or `/model opus`.
 - [ ] **Fable:** check that every number in the README and report traces to a file in `bench/results/`
 - [x] **Opus:** Grafana dashboard
 - [ ] **You:** 2-minute screen recording (needs a person at the screen; the README quick start is the script to follow)
-- [ ] **You:** resume bullets and a 60-second spoken summary, built on measured numbers
+- [x] **Fable:** resume bullets and a 60-second spoken summary, built on measured numbers: `docs/resume.md` (put them in your own words before using them)
 - [ ] **You:** tag `v1.0` (wait until the full scenario matrix, the README results and the report are in; then `git tag v1.0`)
 
 **Done when**
@@ -195,7 +195,7 @@ From Fable's review of the gateway, cluster and bench runner: [docs/reviews/2026
 
 Carried over from PLAN.md; answer them when they start blocking a task.
 
-- [ ] Which two measured numbers headline the resume bullet?
+- [x] Which two measured numbers headline the resume bullet? **Answered: 4.5% over-admission, and p99 decision latency of 12 µs for gossip against 395 µs for Redis** (S1).
 - [x] Custom load generator from day one, or vegeta first and custom in Phase 4? **Answered: custom from day one.** It is built on the open-loop scheduler and writes the CSV the analyzer reads; vegeta remains an option as a cross-check.
 - [ ] Own SWIM implementation: worth it, or leave in the backlog?
 

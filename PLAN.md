@@ -737,13 +737,13 @@ Defaults unless a row says otherwise: 3 gateways, sliding window counter, limit 
 | S0 | How noisy is the measurement itself? | memory | 1 gateway |
 | S1 | Head-to-head at the defaults | redis, gossip | Nothing |
 | S2 | Effect of cluster size | redis, gossip | 1, 3, 5 gateways |
-| S3 | Effect of load | redis, gossip | 0.5x, 1x, 2x, 10x the limit |
+| S3 | Effect of load | redis, gossip | 0.5x, 1x, 2x, 6x the limit (10x was planned; the test laptop sent over 1% of requests late there) |
 | S4 | Effect of gossip interval | gossip | 10, 50, 100, 500 ms; at 3 and at 5 gateways |
 | S5 | Effect of fanout | gossip | 1, 2, 4; at 5 gateways |
 | S6 | Effect of Redis network delay | redis | 0, 1, 5 ms added through toxiproxy |
-| S7 | Burst from idle | redis, gossip | 5 s of silence, then 10x load for 1 s |
+| S7 | Burst from idle | redis, gossip | 5 s of silence, then 4x load for 1 s (10x was planned; from cold the laptop sent 22% to 45% of it late) |
 | S8 | Skewed keys | redis, gossip | 1,000 keys with a Zipf distribution |
-| S9 | Throughput ceiling | memory, redis, gossip | Raise total load in steps until p99 doubles |
+| S9 | Throughput ceiling | memory, redis, gossip | Raise total load in steps until p99 doubles; memory on 1 gateway |
 | F1 | Gateway crash | redis, gossip | Kill one gateway at t = 10 s |
 | F2 | Redis outage | redis | Stop Redis for 5 s at t = 10 s; run both error policies |
 | F3 | Network partition | gossip | 4 gateways split 2 + 2 for 10 s through the debug block endpoint |
