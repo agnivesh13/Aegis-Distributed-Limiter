@@ -47,9 +47,21 @@ func TestMemberlistTransport(t *testing.T) {
 	)
 	for i := range 3 {
 		in := &inbox{}
-		m, err := NewMemberlist(MemberlistConfig{
-			Name: fmt.Sprintf("gateway-%d", i), BindAddr: "127.0.0.1", BindPort: 0,
-		}, in)
+		// Port 0 asks for any free port. memberlist needs the same number
+		// free for TCP and UDP, and on Windows some UDP ports are reserved
+		// (for Hyper-V and Docker), so an attempt can fail: try again.
+		var (
+			m   *Memberlist
+			err error
+		)
+		for range 10 {
+			m, err = NewMemberlist(MemberlistConfig{
+				Name: fmt.Sprintf("gateway-%d", i), BindAddr: "127.0.0.1", BindPort: 0,
+			}, in)
+			if err == nil {
+				break
+			}
+		}
 		if err != nil {
 			t.Fatal(err)
 		}

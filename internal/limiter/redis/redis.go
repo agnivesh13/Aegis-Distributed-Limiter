@@ -26,8 +26,9 @@ var (
 	tokenBucket   = goredis.NewScript(tokenBucketSrc)
 	slidingWindow = goredis.NewScript(slidingWindowSrc)
 
-	// slidingWindowWritten is false while sliding_window.lua is still the
-	// comment-only stub. The backend then refuses that algorithm.
+	// slidingWindowWritten guards against a script file with no code in
+	// it (all comments). The backend then refuses that algorithm instead
+	// of sending Redis an empty script.
 	slidingWindowWritten = hasCode(slidingWindowSrc)
 )
 

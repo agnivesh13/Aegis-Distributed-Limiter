@@ -13,8 +13,5 @@ func newBackend(_ *testing.T, clock limiter.Clock) limiter.Limiter {
 }
 
 func TestConformance(t *testing.T) {
-	// Only the sliding window is listed while the token bucket is unwritten.
-	// Once allowTokenBucket exists, drop the last argument so the suite
-	// checks both algorithms.
-	limitertest.Run(t, newBackend, limiter.SlidingWindow)
+	limitertest.Run(t, newBackend) // both algorithms
 }

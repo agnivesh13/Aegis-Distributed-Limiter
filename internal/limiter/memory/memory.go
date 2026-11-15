@@ -85,7 +85,7 @@ func (b *Backend) Allow(_ context.Context, key string, l limiter.Limit, cost int
 
 	now := b.clock.Now()
 	if l.Algorithm == limiter.TokenBucket {
-		return b.allowTokenBucket(key, l, cost, now)
+		return b.allowTokenBucket(key, l, cost, now), nil
 	}
 	return b.allowSlidingWindow(key, l, cost, now), nil
 }

@@ -1,42 +1,69 @@
 package gossip
 
+import (
+	"time"
+
+	"github.com/agnivesh13/Aegis-Distributed-Limiter/internal/limiter"
+)
+
 // Merge folds one entry received from another node into this store. It
-// reports whether the entry told this node something new.
+// reports whether the entry told this node something new. It follows
+// "Merge (on receiving an entry)" in the plan.
 //
-// This is the piece the plan reserves for you to write by hand. Until it is
-// written it does nothing, so nodes never learn from each other, and the
-// tests that need it skip themselves with a message saying so.
+// An entry says "node N has admitted Count requests for this key in this
+// window, in total". A node's count only ever grows, so the larger of two
+// reports is always the newer one, and keeping the larger is all a merge
+// has to do. That makes merging safe against everything the network does:
 //
-// What to build is "Merge (on receiving an entry)" in PLAN.md:
+//   - a duplicate packet: the count is not larger, so nothing changes;
+//   - a late, older packet: the count is smaller, so nothing changes;
+//   - a lost packet: the next report carries a larger total anyway.
 //
-//  1. Ignore the entry if its window is older than this node's previous
-//     window, or more than one window ahead of its current one.
-//  2. If e.Count is greater than the count stored for e.Node: raise the
-//     window's total by the difference, store e.Count, and mark the count
-//     dirty for s.retransmit rounds so the news is passed on.
-//  3. Otherwise do nothing.
+// Adding the reported amounts instead would count a duplicate twice.
 //
-// What is already there for you to use (see store.go):
-//
-//   - s.shardFor(e.Key) gives the shard; lock sh.mu before touching it.
-//   - sh.keys[e.Key] is the key's *keyState, or nil if the key is new.
-//     Allow shows how a keyState is created.
-//   - ks.window(e.Idx) gives the window's counts, creating them if needed.
-//     Its fields are perNode, total and dirty.
-//   - limiter.WindowAt(s.clock.Now(), period) gives this node's current
-//     window number. The period is e.WindowMs milliseconds.
-//
-// Things to think through before you write it:
-//
-//   - Why "greater than" and not "add"? What would happen to the total if
-//     the same packet arrived twice?
-//   - An entry about this node itself (e.Node == s.self) follows the same
-//     rule. When can that happen, and why is it useful?
-//   - What should happen when e.WindowMs differs from the window length
-//     this node already holds for the key?
-//
-// The tests in merge_test.go check that merging is order-independent and
-// that merging the same entry twice changes nothing.
+// The rule applies to this node's own count too. After a restart it holds
+// nothing, and its peers hand its own earlier count back to it.
 func (s *Store) Merge(e Entry) (changed bool) {
-	return false
+	if e.WindowMs <= 0 {
+		return false
+	}
+
+	// 1. Only the previous, current and next windows are accepted. Older
+	// ones can no longer affect a decision. "Next" allows for a peer whose
+	// clock is slightly ahead; anything further is a broken clock or a
+	// corrupt packet, and storing it would waste memory.
+	idxNow, _ := limiter.WindowAt(s.clock.Now(), time.Duration(e.WindowMs)*time.Millisecond)
+	if e.Idx < idxNow-1 || e.Idx > idxNow+1 {
+		return false
+	}
+
+	sh := s.shardFor(e.Key)
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+
+	ks := sh.keys[e.Key]
+	if ks == nil {
+		ks = &keyState{windowMs: e.WindowMs, windows: make(map[int64]*windowCounts)}
+		sh.keys[e.Key] = ks
+	} else if ks.windowMs != e.WindowMs {
+		// The peer counts this key in windows of another length (a
+		// config change part-way through a rollout). Window numbers of
+		// different lengths cannot be compared, so the entry is ignored.
+		return false
+	}
+
+	// 2. Keep the higher count. total is the cached sum of perNode, so it
+	// rises by exactly the difference.
+	wc := ks.window(e.Idx)
+	old := wc.perNode[e.Node]
+	if e.Count <= old {
+		return false // 3. nothing new
+	}
+	wc.total += e.Count - old
+	wc.perNode[e.Node] = e.Count
+
+	// News is passed on: mark the count to be sent in the coming rounds,
+	// so it reaches peers the original sender did not pick.
+	wc.dirty[e.Node] = s.retransmit
+	return true
 }
