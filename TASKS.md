@@ -2,7 +2,7 @@
 
 Every task from [PLAN.md](PLAN.md), who owns it, and whether it is done. PLAN.md says what to build; this file only tracks progress.
 
-**Current position:** Phases 0 to 4 are complete: every backend is built, the cluster runs, and the full scenario matrix (132 runs) is measured. Phase 5 remains: the README results, the report, and for you the screen recording, A Tour of Go and the `v1.0` tag.
+**Current position:** Phases 0 to 4 are complete, and Phase 5's write-up is in: the README, `docs/report.md` and the number check. What remains is yours: the screen recording, A Tour of Go and the `v1.0` tag.
 
 ## How to use this file
 
@@ -150,10 +150,10 @@ Switch models with `/model fable` or `/model opus`.
 
 **Tasks**
 
-- [ ] **Opus:** `README.md`: pitch, architecture diagram, quick start, results table, both charts, limitations (a stub with build, test and run commands exists; the rest needs results)
-- [ ] **Opus:** `docs/report.md` draft: question, setup, method, results per scenario, limitations (waits on results)
-- [ ] **Fable:** the prediction-against-measurement analysis in `docs/report.md`
-- [ ] **Fable:** check that every number in the README and report traces to a file in `bench/results/`
+- [x] **Opus:** `README.md`: pitch, architecture diagram, quick start, results table, both charts, limitations (written by Fable on 2026-11-16, since the two Fable tasks below waited on it)
+- [x] **Opus:** `docs/report.md` draft: question, setup, method, results per scenario, limitations (written by Fable on 2026-11-16, for the same reason)
+- [x] **Fable:** the prediction-against-measurement analysis in `docs/report.md`
+- [x] **Fable:** check that every number in the README and report traces to a file in `bench/results/`
 - [x] **Opus:** Grafana dashboard
 - [ ] **You:** 2-minute screen recording (needs a person at the screen; the README quick start is the script to follow)
 - [x] **Fable:** resume bullets and a 60-second spoken summary, built on measured numbers: `docs/resume.md` (put them in your own words before using them)
@@ -161,8 +161,8 @@ Switch models with `/model fable` or `/model opus`.
 
 **Done when**
 
-- [ ] Someone who has never seen the repo can clone it, run one command, and reproduce one row of the results table
-- [ ] Every number in the README and the report traces to a file in `bench/results/`
+- [x] Someone who has never seen the repo can clone it, run one command, and reproduce one row of the results table (the README's S0 command was run from this tree; try it once from a fresh clone before tagging)
+- [x] Every number in the README and the report traces to a file in `bench/results/`
 
 ## Review follow-ups
 

@@ -67,6 +67,8 @@ For 3 gateways gossiping every 100 ms: `(2/3) × 0.05 / 1 = 3.3%`. Measured: **3
 
 The measurement is always a little above the prediction. That makes sense: the formula counts only the wait until the next gossip round, and leaves out the time a packet takes to arrive and be processed. At 10 ms that leftover is a large share of the total, so the relative gap is biggest there.
 
+The formula also has a flaw of its own, which explains the 500 ms row almost exactly; that is in [19-the-write-up-and-the-model.md](19-the-write-up-and-the-model.md).
+
 This is the first chart: over-admission against gossip interval. It is the most important picture in the project, because it shows that **the cost of approximation is a dial**. Gossip ten times as often and the error falls about seven-fold, at the price of more network traffic.
 
 ### Where the simple formula breaks: fanout

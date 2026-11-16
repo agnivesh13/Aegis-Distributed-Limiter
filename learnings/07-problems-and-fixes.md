@@ -436,6 +436,21 @@ All twelve runs that needed five gateways failed, while three-gateway runs were 
 
 **Lesson.** Check every number in a write-up against its source, as a separate step after writing. This is plan rule 7 ("numbers must come from those files") applied to prose. Rounding in your favour and smoothing over an awkward point are how true results turn into false claims.
 
+## 33. The report draft had four wrong figures
+
+**What it looked like.** After drafting `docs/report.md`, I recomputed its figures from `summary.csv`. Four did not match:
+
+- "1.8% of sends were late at 10,000 requests per second": that was the median of three runs that ranged from 1.0% to 2.3%.
+- "late sends were 0.6% to 0.7% at 6×": the real range was 0.3% to 0.8%.
+- "gossip decisions took 10 to 12 µs in every scenario": one point (fanout 1, five gateways) was 15 µs.
+- "both policies recovered when Redis returned": true, but the evidence is the Phase 2 check, not the F2 scenario the sentence sat under.
+
+**Cause.** The same as problem 32: writing from memory, and quoting one number where the data is a range.
+
+**Fix.** Each was corrected, and the last was pointed at the file that supports it.
+
+**Lesson.** Having made this mistake once did not stop it happening again. What stopped it reaching the commit was the *step*: recompute, then compare. Rely on the procedure, not on being careful.
+
 ## The pattern behind all of these
 
 Looking back over the list:

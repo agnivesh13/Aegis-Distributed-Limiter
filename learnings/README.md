@@ -28,6 +28,7 @@ Read them in order the first time. Each file assumes the ones before it.
 | [16-the-three-core-pieces.md](16-the-three-core-pieces.md) | **Read this one twice.** The token bucket, the Lua script and the gossip merge, line by line, with exercises to rebuild each from memory |
 | [17-warmup-exercises.md](17-warmup-exercises.md) | A worker pool, a counter written three ways, a logging middleware and table-driven tests |
 | [18-reading-the-results.md](18-reading-the-results.md) | **The point of the project.** What each number means, why it came out that way, and the limits of the results |
+| [19-the-write-up-and-the-model.md](19-the-write-up-and-the-model.md) | How the README and report are organised, a correction to the prediction formula, and how the numbers were checked |
 
 ## How to study with these
 

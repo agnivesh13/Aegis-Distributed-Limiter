@@ -153,11 +153,14 @@ You handed your own tasks to Fable. The token bucket, the sliding-window Lua scr
 
 With nothing left blocked, the whole scenario matrix ran: 132 runs over about three hours. The headline: Redis is exact at 395 µs per decision; gossip takes 12 µs and lets 4.5% extra through. Three more problems surfaced during the run and were fixed. Explained in [18-reading-the-results.md](18-reading-the-results.md).
 
+## Step 19: The write-up
+
+The README now opens with the result, and `docs/report.md` holds the full method, every scenario and the limits. Writing the report turned up a flaw in the plan's prediction formula; the corrected one matches the 500 ms measurement almost exactly. Every figure in both documents was recomputed from `summary.csv` and compared. Explained in [19-the-write-up-and-the-model.md](19-the-write-up-and-the-model.md).
+
 ## What is left
 
 | Task | Who |
 | --- | --- |
-| README results section and `docs/report.md` (Phase 5) | Opus, then Fable checks the numbers |
 | A Tour of Go, the screen recording, tagging `v1.0` | You |
 | Studying these notes until you can explain the project unaided | You |
 
